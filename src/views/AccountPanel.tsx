@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Notation } from '../audio/music';
-import { signInWithEmail, signInWithGoogle, signOut, useAuth } from '../lib/auth';
+import { signInWithEmail, signInWithGoogle, signOut, useAuth, useProviders } from '../lib/auth';
 import { cloudEnabled, DONATE_LABEL, DONATE_URL, showDonations } from '../lib/config';
 import { store, useStore, useSyncState } from '../lib/store';
 import { Panel } from './LibraryPanel';
@@ -24,6 +24,7 @@ export function AccountPanel({
   const [err, setErr] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const install = useInstallPrompt();
+  const providers = useProviders();
 
   const sendLink = async (e: FormEvent) => {
     e.preventDefault();
@@ -65,10 +66,16 @@ export function AccountPanel({
           ) : (
             <>
               <p className="muted-text">Crea tu cuenta gratis para tener tu repertorio, tus tonos y tus medleys en todos tus dispositivos.</p>
-              <button className="cta google" onClick={() => void signInWithGoogle().catch((x) => setErr((x as Error).message))}>
-                Continuar con Google
-              </button>
-              <div className="or">o con tu correo (sin contraseña)</div>
+              {providers?.google ? (
+                <>
+                  <button className="cta google" onClick={() => void signInWithGoogle().catch((x) => setErr((x as Error).message))}>
+                    Continuar con Google
+                  </button>
+                  <div className="or">o con tu correo (sin contraseña)</div>
+                </>
+              ) : (
+                <div className="or">Entra con tu correo, sin contraseña:</div>
+              )}
               {sent ? (
                 <p className="ok-text">📧 Te enviamos un enlace a {email}. Ábrelo en este dispositivo para entrar.</p>
               ) : (
