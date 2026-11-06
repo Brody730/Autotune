@@ -1,5 +1,7 @@
 # Live Stage Assistant
 
+**App en vivo:** https://autotune-nu.vercel.app — se publica sola en Vercel con cada cambio en `main`.
+
 Asistencia en vivo para músicos: detección de tonalidad en tiempo real, acordes y teleprompter para escenario.
 
 ## Estado
