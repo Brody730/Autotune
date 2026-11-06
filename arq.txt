@@ -1,0 +1,42 @@
+flowchart TD
+    %% Entradas
+    subgraph INPUTS ["1. Captura en Tiempo Real"]
+        A[🎤 Micrófono / Audio en Vivo]
+    end
+
+    %% Procesamiento de Audio Local (Navegador)
+    subgraph DSP ["2. Procesamiento Digital de Audio (Web Audio API)"]
+        A --> B[AnalyserNode & Pitch Detection Algorithm]
+        B --> C[Frecuencia Hz -> Nota Musical ej. A4 / C#]
+        B --> D[Acumulador de Notas / Historial de Tonos]
+        D --> E[Inferencia de Tonalidad / Escala ej. Sol Mayor]
+    end
+
+    %% Módulo de Inteligencia y Reconocimiento
+    subgraph AI_ENGINE ["3. Motor de Reconocimiento y Predicción (AI + Web)"]
+        A --> F[Speech-to-Text / Audio Fingerprint Engine]
+        F --> G{¿Canción Encontrada?}
+        
+        G -- Sí --> H[Búsqueda de Cifrado / Cifraclub / Ultimate Guitar API]
+        G -- No / Improvisación --> I[Motor de Predicción de Armonía / Escala I-IV-V-vi]
+        
+        H --> J[Sincronización de Letra + Acordes]
+    end
+
+    %% Interfaz Músico
+    subgraph UI ["4. Visor Escenario (UI Músico)"]
+        C --> K[Indicador de Nota / Tonalidad Actual]
+        E --> K
+        J --> L[Teleprompter Predictivo: Letra + Próximo Acorde]
+        I --> M[Sugeridor de Acordes para Improvisación]
+    end
+
+    classDef input fill:#1f2937,stroke:#60a5fa,stroke-width:2px,color:#fff;
+    classDef dsp fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#fff;
+    classDef ai fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff;
+    classDef ui fill:#4c1d95,stroke:#c084fc,stroke-width:2px,color:#fff;
+
+    class A input;
+    class B,C,D,E dsp;
+    class F,G,H,I,J ai;
+    class K,L,M ui;

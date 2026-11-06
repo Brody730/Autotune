@@ -1,0 +1,34 @@
+[PROMPT MAESTRO: SISTEMA DE ASISTENCIA EN VIVO PARA MÚSICOS]
+
+PROPÓSITO DEL PROYECTO:
+Desarrollar una Web App en tiempo real orientada a músicos de acompañamiento, bandas y servicios en vivo (iglesia/eventos), que analice el audio del micrófono para identificar la tonalidad del cantante, reconocer la canción interpretada, buscar su letra/acordes y predecir la estructura que sigue.
+
+REQUERIMIENTOS TÉCNICOS Y FUNCIONALES:
+
+1. Detección de Tonalidad en Tiempo Real (DSP):
+   - Capturar el stream de micrófono usando Web Audio API (getUserMedia).
+   - Implementar algoritmo de Pitch Detection (YIN o Autocorrelación) para obtener la frecuencia F0 y mapearla a la nota musical actual.
+   - Analizar el historial de notas emitidas para inferir la tonalidad armónica (ej. C Mayor, E Menor).
+
+2. Reconocimiento de Canción & Búsqueda Web:
+   - Procesar la voz en vivo usando Speech-to-Text o reconocimiento de fragmentos de letra.
+   - Realizar búsquedas dinámicas para recuperar la letra (lyrics) y los acordes (chord sheet) correspondientes.
+   - En caso de canciones de alabanza/iglesia o repertorios específicos, permitir integración con bases de datos de cifrados.
+
+3. Transposición e Improvisación Adaptativa:
+   - Si el cantante interpreta la canción en un tono diferente al original, el sistema debe transponer automáticamente la tabla de acordes a la tonalidad detectada en el micrófono.
+   - Si es una improvisación o canto espontáneo (sin canción registrada), mostrar un panel de acordes sugeridos basados en la escala detectada (ej. grados I, IV, V, vi).
+
+4. Interfaz de Usuario para Escenario (Stage View):
+   - Visualización de alto contraste y tipografía grande (apta para atriles, tablets o smartphones).
+   - Muestra central de la Nota Activa y Tonalidad General.
+   - Teleprompter con desplazamiento automático o predictivo que resalte el verso actual y avance hacia el verso/acorde que sigue.
+[DOCS & WORKFLOW REQUIREMENT]
+
+- Todo cambio realizado en el proyecto debe ser documentado.
+- La documentaci�n se guarda en la subcarpeta /docs del proyecto.
+- Cada cambio debe incluir, cuando corresponda:
+  - Descripci�n del cambio.
+  - Archivos afectados.
+  - Decisiones t�cnicas tomadas.
+  - Diagramas Mermaid (flujo / arquitectura / secuencia) cuando aplique.
