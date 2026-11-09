@@ -345,3 +345,48 @@ En su lugar, la persona de la banda busca la canción, **copia y pega** (uso pri
 - **Síntoma**: en «Te vengo a decir» unas líneas de acordes (`LA … MI`) salían como letra (en blanco, sin transportar) y otras (`La Mi La`) sí.
 - **Causa**: el texto copiado de páginas web trae caracteres invisibles (espacios de ancho cero `U+200B`, guiones suaves) o letras de ancho completo (`ＬＡ`). A la vista son iguales, pero «LA» + carácter invisible ya no es un acorde. Las mayúsculas no eran el problema (`LA`, `SOL`, `DO#m`, `SIb` se reconocen bien).
 - **Arreglo**: `normalizeSheetText` (`src/song/chords.ts`) normaliza antes de leer, mostrar o transportar: NFKC (ancho completo → normal), elimina caracteres de ancho cero y convierte espacios especiales en espacios normales. También se aplica al pegar en el editor. Las cifras ya guardadas se corrigen solas al mostrarse, sin volver a pegarlas.
+
+---
+
+## 2026-11-09 — Modo práctica tipo Guitar Hero (bajo) con pista, puntaje, arreglos y grabación
+
+### Cambio
+**🎮 Práctica** (botón arriba, o «🎮 Practicar» en cualquier canción de la bóveda):
+- Eliges canción (bóveda o biblioteca), **estilo**, BPM, tono (−½/+½), compases por acorde y qué parte practicar.
+- **Estilos** (`src/practice/styles.ts`): Norteña (polka 2/4, **primera y quinta abajo** como el tololoche), Vals norteño/ranchera (3/4), Cumbia (con güiro), Rock, Balada, Alabanza/pop. Cada uno con su batería, «pam» de acordes (acordeón, guitarra, piano u órgano sintetizados) y patrón de bajo.
+- **Pista sintetizada** con Web Audio (sin archivos de audio): bombo, tarola, hi-hat, güiro, aplausos, acordes y **bajo guía** opcional. Cuenta de entrada de un compás.
+- **Carretera tipo Guitar Hero** (`Highway.tsx`, canvas): un carril por cuerda (Sol arriba, Mi abajo, como tablatura), cada nota con su **traste** y nombre, acordes arriba, línea de golpe; las notas se pintan verde (perfecta/bien) o rojo (fallada); puntos de lo que tocaste (cian = nota propia).
+- **Escucha del bajo** por la interfaz de audio: detector con `processorOptions` para bajo (análisis a 24 kHz, ventana de 85 ms → llega al Mi grave de 41 Hz; <1 ms por análisis). Cada lectura trae su instante exacto en el reloj del AudioContext (el mismo que programa la pista).
+- **Calificación**: perfecta (±80 ms), bien (±200 ms), fallada; la nota cuenta sin importar la octava. Racha, puntaje y estrellas.
+- **Tus arreglos**: las notas que tocas fuera de la línea base no cuentan como error; se reportan como «del acorde» (arpegios, octavas) o «de paso / adornos».
+- **Tiempo**: te dice si te adelantas o atrasas (ms promedio) y ofrece **ajustar la latencia** automáticamente.
+- **Grabación** de tu toma mezclada con la pista (queda en Biblioteca → Grabaciones) e **historial** de prácticas con tu mejor puntaje por canción y estilo.
+
+### Detección de ataques (lo más delicado)
+- En notas cortas de bajo la «claridad» de YIN es moderada (0.4–0.7) porque la ventana atrapa el ataque. Exigir 0.72 perdía notas buenas → ahora una nota es válida si **dos lecturas seguidas coinciden** (claridad ≥ 0.35).
+- Nota nueva = cambio de tono confirmado, o la misma nota con **golpe de energía** (re-pulsar). Se ignoran los «saltos de octava» del detector justo tras el ataque y el parpadeo de claridad mientras la nota se apaga.
+
+### Verificado (bajista virtual: micrófono simulado que toca la línea a tiempo)
+- 28 notas, 2 saltadas a propósito, 2 notas de paso: **26 perfectas, 2 falladas (exactamente las saltadas), 2 notas propias «de paso»**, 93 %, «Vas a tiempo».
+- Tocando todo 120 ms tarde: 28 «Bien», 0 perfectas, «Te atrasas ~99 ms» + sugerencia de ajustar latencia.
+- Grabación de la toma reproducible desde los resultados.
+- **No verificado con un bajo real**: la detección se probó con sonido sintético; con instrumento real puede requerir ajustar la latencia (el propio modo lo sugiere).
+
+### Archivos
+- Nuevos: `src/practice/{styles,timeline,engine,history}.ts`, `src/views/practice/{PracticePanel,Highway}.tsx`.
+- Modificados: `src/audio/pitchWorklet.ts` (opciones por instancia, diezmado, marca de tiempo), `src/App.tsx`, `src/views/band/Vault.tsx`, `src/index.css`.
+
+```mermaid
+flowchart LR
+    S[Cifrado] --> TL[timeline: acordes + bajo esperado<br/>cuerda/traste + golpes]
+    ST[Estilo: norteña, cumbia…] --> TL
+    TL --> SCH[Programador Web Audio<br/>batería · acordes · bajo guía]
+    SCH --> OUT[🔊 Pista]
+    BASS[🎸 Bajo → interfaz] --> DET[Detector bajo 24 kHz<br/>+ instante exacto]
+    DET --> ON[Ataques: 2 lecturas estables<br/>o golpe de energía]
+    ON --> J{¿Nota esperada<br/>±200 ms?}
+    J -- sí --> HIT[Perfecta / Bien]
+    J -- no --> ARR[Nota propia: acorde / de paso]
+    OUT --> REC[Grabación: pista + tu toma]
+    BASS --> REC
+```

@@ -38,6 +38,7 @@ import { buildSong, Song } from './song/lyrics';
 import { librarySongs, setExtraSongs } from './song/library';
 import { keyShiftBetween } from './lib/voice';
 import { LibraryPanel } from './views/LibraryPanel';
+import { PracticePanel } from './views/practice/PracticePanel';
 
 /** Recordatorio de donación: como mucho una vez cada 14 días, y solo tras grabar. */
 function shouldNudge(): boolean {
@@ -121,7 +122,17 @@ export default function App() {
   // Cuenta (inicia la sincronización si hay sesión), vistas y grabación
   const { user } = useAuth();
   const profileName = useStore((d) => d.profile.displayName);
-  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band'>('stage');
+  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band' | 'practice'>('stage');
+  const [practiceSong, setPracticeSong] = useState<string | null>(null);
+  // «🎮 Practicar» desde la bóveda
+  useEffect(() => {
+    const h = (e: Event) => {
+      setPracticeSong((e as CustomEvent<string>).detail);
+      setView('practice');
+    };
+    window.addEventListener('lsa:practice', h);
+    return () => window.removeEventListener('lsa:practice', h);
+  }, []);
   const [jamMode, setJamMode] = useState<JamMode>('off');
   const [jamEvent, setJamEvent] = useState<BandEvent | null>(null);
   const [setIndex, setSetIndex] = useState(0);
@@ -590,6 +601,9 @@ export default function App() {
         <button className="ctl nav" onClick={() => setView('library')} title="Canciones, medleys y grabaciones">
           📚 <span>Biblioteca</span>
         </button>
+        <button className="ctl nav" onClick={() => setView('practice')} title="Practica con pista y puntaje (tipo Guitar Hero)">
+          🎮 <span>Práctica</span>
+        </button>
         <button className="ctl nav account" onClick={() => setView('account')} title="Cuenta">
           <span className="avatar sm">{(profileName || user?.email || '').slice(0, 1).toUpperCase() || '👤'}</span>
           <span>{user ? 'Cuenta' : 'Entrar'}</span>
@@ -868,6 +882,9 @@ export default function App() {
 
       {/* ── Paneles (el audio sigue funcionando debajo) ── */}
       {view === 'library' ? <LibraryPanel notation={notation} onClose={() => setView('stage')} /> : null}
+      {view === 'practice' ? (
+        <PracticePanel notation={notation} getStream={getStream} initialSongKey={practiceSong} onClose={() => setView('stage')} />
+      ) : null}
       {view === 'band' ? (
         <BandPanel
           notation={notation}

@@ -203,6 +203,13 @@ function SongViewer({ song, notation, onBack, onEdit }: { song: BandSong; notati
             {song.updated_by_name ? ` por ${song.updated_by_name}` : ''}
           </span>
         </div>
+        <button
+          className="ctl amber"
+          onClick={() => window.dispatchEvent(new CustomEvent('lsa:practice', { detail: song.song_key }))}
+          title="Tocar esta canción con pista y puntaje"
+        >
+          🎮 Practicar
+        </button>
         <button className="ctl" onClick={onEdit}>
           ✏ Editar
         </button>
