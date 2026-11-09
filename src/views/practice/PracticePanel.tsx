@@ -349,6 +349,7 @@ function Playing({
         </div>
         <div className={`pp-judge ${lastJudge ?? ''}`}>{lastJudge === 'perfect' ? '¡Perfecto!' : lastJudge === 'good' ? 'Bien' : lastJudge === 'miss' ? 'Fallo' : ''}</div>
       </div>
+      <Karaoke session={session} now={now} ci={now < 0 ? 0 : ci} />
       <Highway session={session} flatsNames={nameOf} />
       <div className="pp-progress">
         <div style={{ width: `${pct * 100}%` }} />
@@ -364,6 +365,57 @@ function Playing({
           ■ Terminar
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Letra tipo karaoke: la línea actual con sus acordes encima; lo ya tocado
+ * se apaga, el tramo del acorde que suena se ilumina (y se va llenando) y
+ * abajo aparece la línea que sigue.
+ */
+function Karaoke({ session, now, ci }: { session: PracticeSession; now: number; ci: number }) {
+  const tl = session.tl;
+  const c = tl.chords[ci];
+  if (!c) return null;
+  const line = tl.lines[c.lineIdx];
+  const lastLine = tl.chords[tl.chords.length - 1]?.lineIdx ?? 0;
+  const next = c.lineIdx < lastLine ? tl.lines[c.lineIdx + 1] : null;
+  const progress = now < 0 ? 0 : Math.max(0, Math.min(1, (now - c.startBeat) / (c.endBeat - c.startBeat)));
+
+  const segments = (l: typeof line, active: number | null) => {
+    if (!l.lyric.trim()) {
+      return l.chords.map((ch, i) => (
+        <span key={i} className={`kc-seg instr ${active === null ? '' : i < active ? 'done' : i === active ? 'on' : ''}`}>
+          <span className="kc-chord">{ch.name}</span>
+        </span>
+      ));
+    }
+    const out: { chord: string | null; text: string; i: number }[] = [];
+    l.chords.forEach((ch, i) => {
+      // El texto antes del primer acorde se canta junto con él: va en su mismo tramo
+      const start = i === 0 ? 0 : ch.pos;
+      const end = l.chords[i + 1]?.pos ?? Math.max(l.lyric.length, ch.pos);
+      const text = l.lyric.slice(start, end);
+      out.push({ chord: ch.name, text: (i === 0 ? text.trimStart() : text) || ' ', i });
+    });
+    return out.map((s, k) => {
+      // El texto antes del primer acorde se canta junto con él
+      const idx = s.i < 0 ? 0 : s.i;
+      const state = active === null ? '' : idx < active ? 'done' : idx === active ? 'on' : '';
+      return (
+        <span key={k} className={`kc-seg ${state}`} style={state === 'on' ? ({ '--p': `${progress * 100}%` } as React.CSSProperties) : undefined}>
+          <span className="kc-chord">{s.chord ?? ' '}</span>
+          <span className="kc-text">{s.text}</span>
+        </span>
+      );
+    });
+  };
+
+  return (
+    <div className="karaoke">
+      <div className="kc-line">{segments(line, now < 0 ? null : c.posInLine)}</div>
+      {next ? <div className="kc-line next">{segments(next, null)}</div> : null}
     </div>
   );
 }

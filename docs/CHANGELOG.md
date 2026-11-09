@@ -390,3 +390,13 @@ flowchart LR
     OUT --> REC[Grabación: pista + tu toma]
     BASS --> REC
 ```
+
+---
+
+## 2026-11-09 — Práctica: letra tipo karaoke junto con los acordes
+
+- En la pantalla de práctica, arriba de la carretera, se muestra la **línea actual de la letra con sus acordes encima** (transportados), y debajo la línea que sigue.
+- Lo ya tocado se apaga, el tramo del acorde que suena se ilumina y **se va llenando** de izquierda a derecha según avanza el compás; las líneas instrumentales se ven como acordes sueltos.
+- `timeline.ts`: cada acorde guarda su línea de letra (`lineIdx`) y su posición en ella (`posInLine`); `Timeline.lines` trae la letra con los acordes ya transportados.
+- El texto antes del primer acorde se une a su tramo (no queda un pedacito suelto).
+- Verificado en el navegador: en el pulso 4.5 se ilumina «ngo a decir» bajo «Mi» y «Te vengo a decir, te ve» (bajo «La») queda apagado; en el pulso 8.5 cambia a «Que yo te amo a ti».

@@ -16,6 +16,15 @@ export interface TLChord {
   name: string;
   /** Notas del acorde ya transportadas (clases de altura 0-11). */
   tones: number[];
+  /** Línea de la letra donde está este acorde y su posición dentro de ella. */
+  lineIdx: number;
+  posInLine: number;
+}
+
+/** Línea de letra con sus acordes (ya transportados), para mostrarla tipo karaoke. */
+export interface TLLine {
+  lyric: string;
+  chords: { pos: number; name: string }[];
 }
 
 export interface TLBass {
@@ -45,6 +54,7 @@ export interface Timeline {
   countInBeats: number;
   totalBeats: number;
   chords: TLChord[];
+  lines: TLLine[];
   bass: TLBass[];
   hits: TLHit[];
 }
@@ -111,17 +121,26 @@ export function buildTimeline(opts: {
   maxChords?: number;
 }): Timeline {
   const { style, bpm, shift, barsPerChord, notation, flats } = opts;
-  let prog = progressionOf(opts.sheet);
+  // Cada acorde recuerda en qué línea de la letra (y en qué posición) está
+  const sheetLines = parseSheet(opts.sheet).filter((l) => l.chords.length > 0);
+  let prog = sheetLines.flatMap((l, lineIdx) => l.chords.map((c, posInLine) => ({ chord: c.chord, lineIdx, posInLine })));
   if (opts.maxChords) prog = prog.slice(0, opts.maxChords);
   const bpb = style.beatsPerBar;
   const chordBeats = Math.max(1, bpb * barsPerChord);
 
-  const chords: TLChord[] = prog.map((chord, i) => ({
+  const lines: TLLine[] = sheetLines.map((l) => ({
+    lyric: l.lyric.replace(/\[[^\]]+\]/g, ''),
+    chords: l.chords.map((c) => ({ pos: c.pos, name: chordToString(c.chord, shift, notation, flats) })),
+  }));
+
+  const chords: TLChord[] = prog.map(({ chord, lineIdx, posInLine }, i) => ({
     startBeat: i * chordBeats,
     endBeat: (i + 1) * chordBeats,
     chord,
     name: chordToString(chord, shift, notation, flats),
     tones: chordTones(chord, shift),
+    lineIdx,
+    posInLine,
   }));
   const totalBeats = chords.length * chordBeats;
   const chordAt = (beat: number) => Math.min(chords.length - 1, Math.floor(beat / chordBeats));
@@ -170,6 +189,7 @@ export function buildTimeline(opts: {
     countInBeats: bpb === 2 ? 4 : bpb,
     totalBeats,
     chords,
+    lines,
     bass,
     hits: hits.sort((a, b) => a.beat - b.beat),
   };

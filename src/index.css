@@ -2672,6 +2672,75 @@ select {
 .pp-judge.miss {
   color: var(--red);
 }
+/* Letra tipo karaoke en la práctica */
+.karaoke {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  min-height: 92px;
+  justify-content: center;
+}
+.kc-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  row-gap: 4px;
+  font-size: clamp(20px, 3vw, 32px);
+  font-family: var(--display);
+  font-weight: 600;
+}
+.kc-line.next {
+  font-size: clamp(14px, 1.8vw, 19px);
+  font-weight: 400;
+  opacity: 0.55;
+}
+.kc-seg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: #bdb8ac;
+  transition: color 0.15s;
+}
+.kc-chord {
+  font-size: 0.62em;
+  font-weight: 800;
+  color: rgba(255, 176, 46, 0.7);
+  padding-right: 0.35em;
+  line-height: 1.1;
+}
+.kc-text {
+  white-space: pre;
+}
+.kc-seg.done {
+  color: var(--faint);
+}
+.kc-seg.done .kc-chord {
+  color: rgba(255, 176, 46, 0.3);
+}
+.kc-seg.on .kc-chord {
+  color: var(--amber);
+  text-shadow: 0 0 14px var(--amber-glow);
+}
+/* El tramo que suena se va «llenando» de izquierda a derecha */
+.kc-seg.on .kc-text {
+  color: transparent;
+  background: linear-gradient(90deg, #fff var(--p, 0%), #8a8578 var(--p, 0%));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.kc-seg.instr .kc-chord {
+  font-size: 0.8em;
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 176, 46, 0.35);
+  border-radius: 8px;
+  margin-right: 6px;
+}
 .highway {
   width: 100%;
   flex: 1;
