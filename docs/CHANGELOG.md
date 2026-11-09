@@ -305,3 +305,11 @@ sequenceDiagram
     RT-->>V: hello
     V->>RT: state completo
 ```
+
+---
+
+## 2026-11-09 — Arreglo: «function gen_random_bytes(integer) does not exist» al crear banda
+
+- **Causa**: `create_band` usaba `gen_random_bytes` (extensión pgcrypto). En Supabase las extensiones viven en el esquema `extensions`, y la función tenía `search_path = public`, así que no la encontraba.
+- **Arreglo**: el código de invitación se genera con `random()` sobre un alfabeto sin caracteres confusos (sin 0/O, 1/I/L). Ya no se necesita ninguna extensión.
+- Archivos: `supabase/bands.sql` (corregido), `supabase/fix_create_band.sql` (solo la función, para aplicar el arreglo sin repetir todo).

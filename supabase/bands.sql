@@ -2,7 +2,7 @@
 -- Ejecutar DESPUÉS de schema.sql: Supabase → SQL Editor → New query → pegar → Run.
 -- Se puede ejecutar varias veces sin problema.
 
-create extension if not exists pgcrypto;
+-- (no requiere extensiones: gen_random_uuid() viene incluido en Postgres)
 
 -- ── Tablas ───────────────────────────────────────────────────────────────────
 
@@ -104,12 +104,16 @@ create policy "members all events" on public.band_events for all
 
 create or replace function public.create_band(p_name text, p_display_name text, p_role text)
 returns public.bands language plpgsql security definer set search_path = public as $$
-declare b public.bands; code text;
+declare b public.bands; code text; alphabet text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 begin
   if auth.uid() is null then raise exception 'Inicia sesión primero'; end if;
+  -- Código de 6 caracteres sin letras/números confusos (0/O, 1/I/L)
   loop
-    code := upper(substr(translate(encode(gen_random_bytes(6), 'base64'), '+/=0O1Il', ''), 1, 6));
-    exit when length(code) = 6 and not exists (select 1 from bands where invite_code = code);
+    code := '';
+    for i in 1..6 loop
+      code := code || substr(alphabet, 1 + floor(random() * length(alphabet))::int, 1);
+    end loop;
+    exit when not exists (select 1 from bands where invite_code = code);
   end loop;
   insert into bands (name, invite_code, created_by) values (p_name, code, auth.uid()) returning * into b;
   insert into band_members (band_id, user_id, display_name, role, is_admin)
