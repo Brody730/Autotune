@@ -62,6 +62,20 @@ export interface Sheet {
   key: MusicalKey | null;
 }
 
+/**
+ * Normaliza el texto copiado de páginas web: letras de ancho completo (ＬＡ),
+ * espacios raros (no separables, em-space…) y caracteres invisibles de ancho
+ * cero que hacen que «LA» no se reconozca como acorde.
+ */
+export function normalizeSheetText(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(/[​-‍⁠﻿­]/g, '')
+    .replace(/[   -   　]/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, '    ');
+}
+
 const SECTION_WORDS = /^\s*[[(]?\s*(intro|coro|estrofa|verso|puente|pre-?coro|final|outro|interludio|chorus|verse|bridge|tag|instrumental|solo|primera|segunda|tercera|parte)\b.*$/i;
 /** Encabezado de sección: palabra conocida, o cualquier «[Algo]» suelto que no sea un acorde. */
 const SECTION_RE = {
@@ -111,7 +125,7 @@ function parseChordPro(line: string): SheetLine | null {
 
 /** Convierte un cifrado pegado en líneas {letra, acordes con posición}. */
 export function parseSheet(text: string): SheetLine[] {
-  const raw = text.replace(/\t/g, '    ').split(/\r?\n/);
+  const raw = normalizeSheetText(text).split('\n');
   const out: SheetLine[] = [];
   for (let i = 0; i < raw.length; i++) {
     const line = raw[i];
@@ -251,9 +265,8 @@ function transposeChordLine(line: string, shift: number, notation: Notation, fla
  * descargarlo como texto). Soporta "acordes encima de la letra" y ChordPro.
  */
 export function transposeSheetRows(text: string, shift: number, notation: Notation, flats: boolean): SheetRow[] {
-  return text
-    .replace(/\t/g, '    ')
-    .split(/\r?\n/)
+  return normalizeSheetText(text)
+    .split('\n')
     .map((line): SheetRow => {
       if (!line.trim()) return { kind: 'blank', text: '' };
       if (isChordLine(line)) return { kind: 'chords', text: transposeChordLine(line, shift, notation, flats) };

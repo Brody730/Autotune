@@ -1,4 +1,4 @@
-import { parseChord } from './chords';
+import { normalizeSheetText, parseChord } from './chords';
 import type { KeyRef } from '../lib/store';
 
 /**
@@ -43,10 +43,7 @@ export function cleanPastedSheet(raw: string): ImportedSheet {
   let artist = '';
   const out: string[] = [];
 
-  const lines = raw
-    .replace(/ /g, ' ')
-    .replace(/\r/g, '')
-    .replace(/\t/g, '    ')
+  const lines = normalizeSheetText(raw)
     .split('\n')
     .map((l) => l.replace(/\s+$/, ''));
 

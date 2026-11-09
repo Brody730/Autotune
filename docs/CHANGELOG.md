@@ -337,3 +337,11 @@ En su lugar, la persona de la banda busca la canción, **copia y pega** (uso pri
 ### Verificado
 - Pegado simulado de una cifra estilo Cifra Club en el editor: título «Santo Santo Santo», autor «Himno», tono Re Mayor detectados; tablatura y textos del sitio eliminados; 12 acordes reconocidos.
 - ChordPro con `{soc}`, `{comment}`, `{key}`, `{tempo}` convertido correctamente.
+
+---
+
+## 2026-11-09 — Arreglo: acordes como «LA», «MI», «RE» no se reconocían en algunas cifras
+
+- **Síntoma**: en «Te vengo a decir» unas líneas de acordes (`LA … MI`) salían como letra (en blanco, sin transportar) y otras (`La Mi La`) sí.
+- **Causa**: el texto copiado de páginas web trae caracteres invisibles (espacios de ancho cero `U+200B`, guiones suaves) o letras de ancho completo (`ＬＡ`). A la vista son iguales, pero «LA» + carácter invisible ya no es un acorde. Las mayúsculas no eran el problema (`LA`, `SOL`, `DO#m`, `SIb` se reconocen bien).
+- **Arreglo**: `normalizeSheetText` (`src/song/chords.ts`) normaliza antes de leer, mostrar o transportar: NFKC (ancho completo → normal), elimina caracteres de ancho cero y convierte espacios especiales en espacios normales. También se aplica al pegar en el editor. Las cifras ya guardadas se corrigen solas al mostrarse, sin volver a pegarlas.
