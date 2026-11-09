@@ -14,7 +14,7 @@ export interface Song {
   lines: LyricLine[];
   synced: boolean;
   duration: number | null;
-  source: 'voz' | 'huella' | 'manual';
+  source: 'voz' | 'huella' | 'manual' | 'banda';
   /** Bigramas de toda la letra, para verificar que la canción sigue sonando. */
   bigramSet: Set<string>;
   tokenSet: Set<string>;

@@ -212,3 +212,72 @@ export function mapLyricsToSheet(lyricTokens: string[][], sheet: SheetLine[]): n
   }
   return map;
 }
+
+// ── Transportar un cifrado completo en texto (estilo LaCuerda / Cifraclub) ──
+
+export type SheetRow =
+  | { kind: 'chords'; text: string }
+  | { kind: 'lyric'; text: string }
+  | { kind: 'section'; text: string }
+  | { kind: 'blank'; text: '' };
+
+/** Cambia cada acorde de una línea de acordes manteniendo las columnas. */
+function transposeChordLine(line: string, shift: number, notation: Notation, flats: boolean): string {
+  let out = '';
+  let cursor = 0;
+  for (const t of chordTokens(line)) {
+    const bare = t.text.replace(/[()]/g, '');
+    const c = parseChord(bare);
+    const replaced = c ? t.text.replace(bare, chordToString(c, shift, notation, flats)) : t.text;
+    // respetar la columna original; si el acorde nuevo es más largo, empujar con un espacio mínimo
+    const target = Math.max(t.pos, out.length + (out.length ? 1 : 0));
+    out += ' '.repeat(Math.max(0, target - out.length)) + replaced;
+    cursor = t.pos + t.text.length;
+  }
+  void cursor;
+  return out;
+}
+
+/**
+ * Devuelve el cifrado transportado como filas tipadas (para pintarlo y para
+ * descargarlo como texto). Soporta "acordes encima de la letra" y ChordPro.
+ */
+export function transposeSheetRows(text: string, shift: number, notation: Notation, flats: boolean): SheetRow[] {
+  return text
+    .replace(/\t/g, '    ')
+    .split(/\r?\n/)
+    .map((line): SheetRow => {
+      if (!line.trim()) return { kind: 'blank', text: '' };
+      if (isChordLine(line)) return { kind: 'chords', text: transposeChordLine(line, shift, notation, flats) };
+      if (/\[[^\]]+\]/.test(line) && parseChordPro(line)) {
+        return {
+          kind: 'lyric',
+          text: line.replace(/\[([^\]]+)\]/g, (m, inner: string) => {
+            const c = parseChord(inner);
+            return c ? `[${chordToString(c, shift, notation, flats)}]` : m;
+          }),
+        };
+      }
+      if (SECTION_RE.test(line)) return { kind: 'section', text: line.trim() };
+      return { kind: 'lyric', text: line };
+    });
+}
+
+export function transposeSheetText(text: string, shift: number, notation: Notation, flats: boolean): string {
+  return transposeSheetRows(text, shift, notation, flats)
+    .map((r) => r.text)
+    .join('\n');
+}
+
+/** Solo la letra (para reconocer la canción por voz aunque no esté en internet). */
+export function sheetLyrics(text: string): string {
+  return parseSheet(text)
+    .map((l) => (l.chords.length && l.lyric ? l.lyric.replace(/\[[^\]]+\]/g, '') : l.lyric))
+    .filter((l) => l.trim())
+    .join('\n');
+}
+
+/** Nota del bajo de un acorde ya transportado (la de después de «/» o la raíz). */
+export function bassOf(c: Chord, shift: number, notation: Notation, flats: boolean): string {
+  return pcName((c.bass ?? c.root) + shift, notation, flats);
+}

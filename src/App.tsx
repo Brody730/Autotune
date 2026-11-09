@@ -26,6 +26,17 @@ import { fmtDuration, LiveRecorder } from './lib/recordings';
 import { useSessionTracker } from './lib/sessionTracker';
 import { useStore } from './lib/store';
 import { AccountPanel } from './views/AccountPanel';
+import { BandEvent } from './band/api';
+import { bandStore, useBand, vaultSongByKey } from './band/bandStore';
+import { JamLine, JamMode, JamState, useJam } from './band/jam';
+import { roleById } from './band/roles';
+import { BandPanel } from './views/band/BandPanel';
+import { CueBanner, JamView, PeerChips } from './views/band/JamView';
+import { bassOf, SheetLine, sheetLyrics } from './song/chords';
+import { sheetKeyFor } from './song/ChordSheet';
+import { buildSong, Song } from './song/lyrics';
+import { librarySongs, setExtraSongs } from './song/library';
+import { keyShiftBetween } from './lib/voice';
 import { LibraryPanel } from './views/LibraryPanel';
 
 /** Recordatorio de donación: como mucho una vez cada 14 días, y solo tras grabar. */
@@ -110,7 +121,11 @@ export default function App() {
   // Cuenta (inicia la sincronización si hay sesión), vistas y grabación
   const { user } = useAuth();
   const profileName = useStore((d) => d.profile.displayName);
-  const [view, setView] = useState<'stage' | 'library' | 'account'>('stage');
+  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band'>('stage');
+  const [jamMode, setJamMode] = useState<JamMode>('off');
+  const [jamEvent, setJamEvent] = useState<BandEvent | null>(null);
+  const [setIndex, setSetIndex] = useState(0);
+  const pendingShift = useRef<number | null>(null);
   const recorderRef = useRef<LiveRecorder | null>(null);
   const [recInfo, setRecInfo] = useState<{ id: string; t0: number } | null>(null);
   const [toast, setToast] = useState<{ text: string; library?: boolean; donate?: boolean } | null>(null);
@@ -325,9 +340,16 @@ export default function App() {
 
   // ── Cifrado original + transposición al tono cantado ──────────────────────
   const songId = song?.id;
+  // El cifrado de la bóveda de la banda tiene prioridad sobre el personal
+  const sheetFromVault = (title: string): StoredSheet | null => {
+    const v = vaultSongByKey(sheetKeyFor(title));
+    return v?.sheet ? { text: v.sheet, key: v.orig_key, title: v.title, artist: v.artist, updated: Date.parse(v.updated_at) } : null;
+  };
   useEffect(() => {
-    setSheetStored(song ? loadSheet(song.title) : null);
-    setManualShift(null);
+    setSheetStored(song ? sheetFromVault(song.title) ?? loadSheet(song.title) : null);
+    // Si se eligió desde la lista del servicio, usar el tono acordado
+    setManualShift(pendingShift.current);
+    pendingShift.current = null;
     if (song) {
       // Medley: la canción nueva puede ir en otro tono → olvidar casi todo el anterior
       hist.current = hist.current.map((v) => v * 0.2);
@@ -353,6 +375,129 @@ export default function App() {
     lyricMap && sheetLines ? (i: number) => (lyricMap[i] !== undefined && lyricMap[i] >= 0 ? sheetLines[lyricMap[i]] : null) : undefined;
   const lineSheet = sheetFor && lyricLine >= 0 ? sheetFor(lyricLine) : null;
   const shiftLabel = shift === 0 ? 'mismo tono' : `${shift > 0 ? '+' : '−'}${Math.abs(shift)} semitono${Math.abs(shift) === 1 ? '' : 's'}`;
+
+  // ── Modo banda: bóveda, servicios y JAM en vivo ───────────────────────────
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    void bandStore.setUser(userId);
+  }, [userId]);
+  const bandId = useBand((s) => s.activeId);
+  const vaultSongs = useBand((s) => s.songs);
+  const bandMembers = useBand((s) => s.members);
+  // Si alguien de la banda edita el cifrado de la canción actual, se actualiza al instante
+  useEffect(() => {
+    if (song) {
+      const v = sheetFromVault(song.title);
+      if (v) setSheetStored(v);
+    }
+    // Las canciones de la bóveda también se reconocen por voz (aunque no estén en internet)
+    setExtraSongs(
+      vaultSongs
+        .map((v) =>
+          buildSong({ id: `band:${v.id}`, title: v.title, artist: v.artist, source: 'banda' }, null, sheetLyrics(v.sheet)),
+        )
+        .filter((s): s is Song => s !== null),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultSongs]);
+
+  const me = bandMembers.find((m) => m.user_id === userId) ?? null;
+  const [jamRole, setJamRole] = useState<string>(() => readPref('lsa.jamRole', ''));
+  const effectiveRole = jamRole || me?.role || 'voz';
+  const jamMe = useMemo(
+    () => (userId ? { userId, name: me?.display_name || profileName || 'Integrante', role: jamMode === 'host' ? me?.role ?? 'voz' : effectiveRole } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userId, me?.display_name, me?.role, profileName, jamMode, effectiveRole],
+  );
+  const jam = useJam({ bandId, mode: jamMode, me: jamMe });
+
+  // Lista del servicio en la JAM: elegir canción a mano (si el reconocimiento no la agarra)
+  const pickSetlistSong = (i: number, ev: BandEvent | null = jamEvent) => {
+    if (!ev) return;
+    const it = ev.items[i];
+    const v = vaultSongs.find((s) => s.id === it?.songId);
+    if (!it || !v) return;
+    setSetIndex(i);
+    const lib = librarySongs().find((s) => sheetKeyFor(s.title) === v.song_key && s.synced);
+    const built = lib ?? buildSong({ id: `band:${v.id}`, title: v.title, artist: v.artist, source: 'banda' }, null, sheetLyrics(v.sheet));
+    const orig = v.orig_key ?? (() => {
+      const k = inferSheetKey(parseSheet(v.sheet));
+      return k ? { root: k.root, scale: k.scale } : null;
+    })();
+    pendingShift.current = it.key && orig ? keyShiftBetween(orig, it.key) : null;
+    if (built) follower.chooseSong(built);
+  };
+  // Si el reconocimiento cambia de canción y está en la lista, avanzar el marcador
+  useEffect(() => {
+    if (!jamEvent || !song) return;
+    const k = sheetKeyFor(song.title);
+    const idx = jamEvent.items.findIndex((it) => vaultSongs.find((v) => v.id === it.songId)?.song_key === k);
+    if (idx >= 0) setSetIndex(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId]);
+
+  // Transmitir el estado a la banda (quien dirige)
+  const noteLabel = live && note ? `${note.name}${note.octave}` : null;
+  const lastNotePub = useRef(0);
+  const lastSig = useRef('');
+  useEffect(() => {
+    if (jamMode !== 'host' || !userId) return;
+    const now = Date.now();
+    const toJamLine = (l: SheetLine | null): JamLine | null =>
+      l
+        ? {
+            lyric: l.lyric,
+            chords: l.chords.map((c) => ({
+              pos: c.pos,
+              name: chordToString(c.chord, shift, notation, tp.flats),
+              bass: bassOf(c.chord, shift, notation, tp.flats),
+            })),
+          }
+        : null;
+    const s: JamState = {
+      host: { userId, name: jamMe?.name ?? '' },
+      song: song ? { title: song.title, artist: song.artist, songKey: sheetKeyFor(song.title) } : null,
+      line: lyricLine,
+      lines: {
+        prev: song && lyricLine > 0 ? song.lines[lyricLine - 1]?.text ?? null : null,
+        cur: song && lyricLine >= 0 ? song.lines[lyricLine]?.text ?? null : null,
+        next: song ? song.lines[lyricLine + 1]?.text ?? null : null,
+        next2: song ? song.lines[lyricLine + 2]?.text ?? null : null,
+      },
+      chordLines: {
+        cur: sheetFor && lyricLine >= 0 ? toJamLine(sheetFor(lyricLine)) : null,
+        next: sheetFor ? toJamLine(sheetFor(lyricLine + 1)) : null,
+      },
+      keyLabel: key ? keyLabel(key, notation) : null,
+      targetLabel: targetKey ? keyLabel(targetKey, notation) : null,
+      shift,
+      note: noteLabel,
+      live,
+      bpm: song ? vaultSongByKey(sheetKeyFor(song.title))?.bpm ?? null : null,
+      setlist: jamEvent
+        ? {
+            title: jamEvent.title,
+            songs: jamEvent.items.map((it) => vaultSongs.find((v) => v.id === it.songId)?.title ?? '—'),
+            index: setIndex,
+          }
+        : null,
+      ts: now,
+    };
+    // La nota cambia muy seguido: si SOLO cambió la nota, como mucho 4 envíos por segundo
+    const sig = JSON.stringify({ ...s, note: null, live: null, ts: 0 });
+    const onlyNote = sig === lastSig.current;
+    if (onlyNote && now - lastNotePub.current < 250) return;
+    lastSig.current = sig;
+    lastNotePub.current = now;
+    jam.publish(s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jamMode, songId, lyricLine, shift, notation, sheetLines, key?.root, key?.scale, noteLabel, live, jamEvent, setIndex]);
+
+  // Enlace de invitación (?unirse=CODIGO): abrir el panel de la banda
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('unirse')) setView(user ? 'band' : 'account');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!user]);
 
   // ── Sesiones (medleys) y grabación en vivo ────────────────────────────────
   keyRef.current = key;
@@ -420,7 +565,10 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <span className={`onair ${micStatus === 'active' ? 'on' : ''}`}>ON AIR</span>
-          <span className="brand-name">Live Stage Assistant</span>
+          <span className="brand-name">
+            Live Stage Assistant
+            <small>Para ministerios de alabanza</small>
+          </span>
         </div>
 
         <button
@@ -431,6 +579,13 @@ export default function App() {
         >
           <span className="rec-dot" />
           {recInfo ? `${fmtDuration((Date.now() - recInfo.t0) / 1000)} · Detener` : 'REC'}
+        </button>
+        <button
+          className={`ctl nav ${jamMode !== 'off' ? 'amber' : ''}`}
+          onClick={() => (jamMode === 'listen' ? setView('stage') : setView('band'))}
+          title="Ministerio: servicios, bóveda de cifrados y JAM en vivo"
+        >
+          👥 <span>{jamMode === 'host' ? `JAM · ${jam.peers.length}` : 'Banda'}</span>
         </button>
         <button className="ctl nav" onClick={() => setView('library')} title="Canciones, medleys y grabaciones">
           📚 <span>Biblioteca</span>
@@ -491,12 +646,59 @@ export default function App() {
         </div>
       </header>
 
-      <SongBar
-        f={follower}
-        settings={{ ...songCfg, onChange: updateSongCfg }}
-        hasSheet={!!sheetStored}
-        onEditSheet={() => setEditingSheet(true)}
-      />
+      <div className="bars">
+        <SongBar
+          f={follower}
+          settings={{ ...songCfg, onChange: updateSongCfg }}
+          hasSheet={!!sheetStored}
+          onEditSheet={() => setEditingSheet(true)}
+        />
+        {jamMode === 'host' ? (
+          <section className="jambar">
+            <span className={`onair ${jam.connected ? 'on' : ''}`}>JAM</span>
+            <PeerChips peers={jam.peers} />
+            {jamEvent ? (
+              <span className="jb-set">
+                <button className="ctl small" disabled={setIndex <= 0} onClick={() => pickSetlistSong(setIndex - 1)} title="Canción anterior del servicio">
+                  ⏮
+                </button>
+                <select value={setIndex} onChange={(e) => pickSetlistSong(Number(e.target.value))}>
+                  {jamEvent.items.map((it, i) => (
+                    <option key={i} value={i}>
+                      {i + 1}. {vaultSongs.find((v) => v.id === it.songId)?.title ?? '—'}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="ctl small"
+                  disabled={setIndex >= jamEvent.items.length - 1}
+                  onClick={() => pickSetlistSong(setIndex + 1)}
+                  title="Siguiente canción del servicio"
+                >
+                  ⏭
+                </button>
+              </span>
+            ) : null}
+            <span className="cues">
+              {['Coro', 'Repetir', 'Puente', 'Final', 'Subir 🔥', 'Bajar 🙏'].map((c) => (
+                <button key={c} className="ctl small" onClick={() => jam.sendCue(c)}>
+                  {c}
+                </button>
+              ))}
+            </span>
+            <button
+              className="ctl small danger"
+              onClick={() => {
+                setJamMode('off');
+                setJamEvent(null);
+              }}
+            >
+              Terminar JAM
+            </button>
+          </section>
+        ) : null}
+      </div>
+      {jamMode === 'host' ? <CueBanner cue={jam.cue} /> : null}
       {editingSheet && song ? (
         <SheetEditor
           title={song.title}
@@ -666,6 +868,46 @@ export default function App() {
 
       {/* ── Paneles (el audio sigue funcionando debajo) ── */}
       {view === 'library' ? <LibraryPanel notation={notation} onClose={() => setView('stage')} /> : null}
+      {view === 'band' ? (
+        <BandPanel
+          notation={notation}
+          loggedIn={!!user}
+          onClose={() => setView('stage')}
+          onLogin={() => setView('account')}
+          onHostJam={(ev) => {
+            setJamEvent(ev);
+            setJamMode('host');
+            setView('stage');
+            if (ev?.items.length) {
+              setSetIndex(0);
+              // empezar con la primera canción del servicio (después la sigue la voz)
+              pickSetlistSong(0, ev);
+            }
+          }}
+          onJoinJam={() => {
+            setJamMode('listen');
+            setView('stage');
+          }}
+        />
+      ) : null}
+      {jamMode === 'listen' ? (
+        <div className="jam-wrap">
+          <JamView
+            state={jam.state}
+            cue={jam.cue}
+            peers={jam.peers}
+            connected={jam.connected}
+            role={effectiveRole}
+            setRole={(r) => {
+              setJamRole(r);
+              writePref('lsa.jamRole', r);
+            }}
+            onCue={jam.sendCue}
+            canCue={roleById(effectiveRole).id === 'director'}
+            onClose={() => setJamMode('off')}
+          />
+        </div>
+      ) : null}
       {view === 'account' ? (
         <AccountPanel notation={notation} liveMidi={live ? midi : null} onClose={() => setView('stage')} />
       ) : null}

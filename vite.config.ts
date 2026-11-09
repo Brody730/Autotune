@@ -8,7 +8,7 @@ export default defineConfig({
     manifest: {
       name: 'Live Stage Assistant',
       short_name: 'LSA',
-      description: 'Asistencia en vivo para músicos: tonalidad, acordes y teleprompter.',
+      description: 'Asistente en vivo para ministerios de alabanza y bandas: tono, acordes transportados, letras, JAM y bóveda de cifrados.',
       start_url: '.',
       scope: '.',
       display: 'standalone',

@@ -112,7 +112,7 @@ export function SongBar({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar canción o artista…"
+            placeholder="Buscar alabanza o artista…"
             aria-label="Buscar canción"
           />
           {results !== null || searching ? (

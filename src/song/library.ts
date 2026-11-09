@@ -33,6 +33,13 @@ function readStored(): StoredSong[] {
   }
 }
 
+/** Canciones extra (p. ej. la bóveda de la banda) que también se reconocen por voz. */
+let extra: Song[] = [];
+export function setExtraSongs(songs: Song[]) {
+  extra = songs;
+  cache = null;
+}
+
 export function librarySongs(): Song[] {
   if (cache) return cache;
   cache = readStored()
@@ -40,6 +47,8 @@ export function librarySongs(): Song[] {
       buildSong({ id: s.id, title: s.title, artist: s.artist, duration: s.duration, source: 'voz' }, s.synced, s.plain),
     )
     .filter((s): s is Song => s !== null);
+  const have = new Set(cache.map((s) => keyOf(s.title)));
+  cache = cache.concat(extra.filter((s) => !have.has(keyOf(s.title))));
   return cache;
 }
 

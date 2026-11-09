@@ -243,3 +243,65 @@ flowchart LR
     end
     ST <-->|sync al iniciar sesión<br/>último cambio gana| SB[(Supabase<br/>profiles · songs · sessions<br/>RLS por usuario)]
 ```
+
+---
+
+## 2026-11-09 — Modo banda (JAM en vivo), bóveda de cifrados, servicios y enfoque de ministerio
+
+### Cambio
+**Ministerio / banda** (`src/band/`, `src/views/band/`, `supabase/bands.sql`)
+- Crear un ministerio o unirse con **código de invitación** (o enlace `?unirse=CODIGO`, compartible por WhatsApp con el botón «Invitar»).
+- Roles: director(a) de alabanza, voz principal, coros, guitarra acústica/eléctrica, bajo, piano/teclado, batería, percusión, cuerdas, vientos, sonido, multimedia.
+- Integrantes: cada quien cambia su rol; los admins pueden quitar integrantes y renombrar.
+
+**Modo JAM en vivo** (`src/band/jam.ts`)
+- Quien dirige (el teléfono que escucha a la voz principal) pulsa «Dirigir JAM aquí»; los demás «Unirme a la JAM».
+- Transmisión por **Supabase Realtime broadcast** (~35 ms de latencia medida): canción, línea actual y siguiente, acordes de la línea **ya transportados**, nota del bajo, tono, BPM y lista del servicio. Presencia: se ve quién está conectado y con qué rol.
+- Latido cada 4 s + «hello» al entrar: quien llega tarde recibe el estado al instante.
+- Vista según rol: **acordes** (guitarra, piano, director…), **bajo** (notas del bajo en grande, incluida la de acordes con «/»), **batería** (letra + BPM), **letra** (voz, coros, sonido) y **proyección** (multimedia: letra grande en negro, para el proyector).
+- **Avisos del director**: Coro, Repetir, Puente, Final, Subir 🔥, Bajar 🙏 aparecen en grande en todas las pantallas.
+- Con un servicio elegido: ⏮/⏭ para pasar de canción a mano, con el **tono acordado** del servicio; si la voz canta otra canción de la lista, el marcador avanza solo.
+
+**Bóveda de cifrados** (modo ensayo)
+- Cifrados en texto estilo LaCuerda/Cifraclub, compartidos y **editables por toda la banda** (se ve quién editó y cuándo; los cambios llegan en tiempo real vía `postgres_changes`).
+- Visor con transporte −½/+½, tamaño de letra, **descarga .txt** e **imprimir / PDF**. El transporte respeta las columnas de los acordes y escribe ♭/♯ según el tono.
+- «Subir mis cifrados»: copia los cifrados de la biblioteca personal a la bóveda.
+- Las canciones de la bóveda también se **reconocen por voz** (alabanzas propias que no están en internet) y su cifrado tiene prioridad en el escenario.
+- Copia local de la bóveda para funcionar con mala señal.
+
+**Servicios y ensayos**
+- Servicio / ensayo / evento con fecha, lista ordenada (↑↓), **tono por canción** y notas («coro x2»).
+- **Modo ensayo**: todos los cifrados del servicio seguidos, cada uno en su tono. Descargar todo en un .txt o imprimir.
+- «Usar en la JAM»: dirige la JAM con esa lista.
+
+**Enfoque cristiano**: subtítulo «Para ministerios de alabanza», lenguaje de ministerio/servicio, versículos (Salmo 33:3, Salmo 100:2), proyección de letras, descripción de la app.
+
+### Verificado
+- Realtime broadcast entre dos clientes con la clave pública: 3/3 mensajes, ~34 ms.
+- JAM real en dos pestañas (anfitrión simulado → integrante): canción, tono, BPM, acordes sobre la letra, presencia («Ana · dirige», «Luis»), lista del servicio; vistas de guitarra, bajo («La Sol#» para La – Mi/Sol#) y proyección.
+- Transporte de cifrado completo Sol → La♭ con bemoles y columnas alineadas.
+- **No verificado** (requiere cuentas reales): crear/unirse a banda, guardar en bóveda/servicios. Depende de ejecutar `supabase/bands.sql`.
+
+### Decisiones técnicas
+- Canal de JAM `jam:<bandId>` (UUID no adivinable). Es un canal *broadcast* público: suficiente para una banda; para aislarlo del todo se pueden activar canales privados de Realtime con políticas en `realtime.messages`.
+- Acordes transportados por quien dirige y enviados ya escritos: los integrantes no necesitan tener el cifrado ni la misma notación.
+- Envíos limitados a 4/s cuando solo cambia la nota; los cambios de línea/canción salen al instante.
+
+```mermaid
+sequenceDiagram
+    participant V as 🎤 Voz (dirige)
+    participant RT as Supabase Realtime<br/>jam:bandId
+    participant G as 🎸 Guitarra
+    participant B as 🎸 Bajo
+    participant P as 📽 Proyección
+    V->>V: reconoce canción + línea, transporta acordes
+    V->>RT: state {canción, línea, acordes, bajo, tono, lista}
+    RT-->>G: acordes sobre la letra
+    RT-->>B: notas del bajo
+    RT-->>P: letra grande
+    V->>RT: cue «Coro»
+    RT-->>G: aviso en pantalla
+    G->>RT: hello (entra tarde)
+    RT-->>V: hello
+    V->>RT: state completo
+```
