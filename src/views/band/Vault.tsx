@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { keyLabel, MusicalKey, Notation } from '../../audio/music';
 import { BandSong, deleteBandSong, friendly, saveBandSong } from '../../band/api';
 import { bandStore, myMember, useBand } from '../../band/bandStore';
 import { parseSheet } from '../../song/chords';
 import { sheetKeyFor } from '../../song/ChordSheet';
+import { cleanPastedSheet, ImportedSheet, importFile, parseChordProFile, searchLinks } from '../../song/importSheet';
 import { store, useStore, type KeyRef } from '../../lib/store';
 import {
   downloadText,
@@ -53,6 +54,7 @@ export function Vault({ notation }: { notation: Notation }) {
         <button className="cta" onClick={() => setEditing('new')}>
           + Subir cifrado
         </button>
+        <ImportFiles />
         <ImportFromLibrary />
       </div>
       {!songs.length ? (
@@ -81,6 +83,66 @@ export function Vault({ notation }: { notation: Notation }) {
           );
         })}
       </div>
+    </>
+  );
+}
+
+/** Importa varios archivos a la vez: ChordPro (CCLI SongSelect, OnSong…) o .txt. */
+function ImportFiles() {
+  const bandId = useBand((s) => s.activeId);
+  const userId = useBand((s) => s.userId);
+  const vault = useBand((s) => s.songs);
+  const input = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (!bandId || !userId) return null;
+
+  const run = async (files: FileList) => {
+    const who = { id: userId, name: myMember()?.display_name ?? '' };
+    let ok = 0;
+    const skipped: string[] = [];
+    for (const f of Array.from(files)) {
+      try {
+        const r = importFile(f.name, await f.text());
+        const songKey = sheetKeyFor(r.title);
+        if (!r.sheet.trim()) {
+          skipped.push(`${f.name} (vacío)`);
+          continue;
+        }
+        if (vault.some((v) => v.song_key === songKey)) {
+          skipped.push(`${r.title} (ya está)`);
+          continue;
+        }
+        setMsg(`Importando ${f.name}…`);
+        const saved = await saveBandSong(
+          { band_id: bandId, song_key: songKey, title: r.title, artist: r.artist, sheet: r.sheet, orig_key: r.key, bpm: r.bpm },
+          who,
+        );
+        bandStore.upsertSongLocal(saved);
+        ok++;
+      } catch (err) {
+        skipped.push(`${f.name} (${friendly(err)})`);
+      }
+    }
+    setMsg(`✓ ${ok} importada${ok === 1 ? '' : 's'}${skipped.length ? ` · omitidas: ${skipped.join(', ')}` : ''}`);
+  };
+
+  return (
+    <>
+      <button className="ctl" onClick={() => input.current?.click()} title="ChordPro (.cho, .chordpro, .pro) de SongSelect/OnSong, o .txt">
+        📂 Importar archivos
+      </button>
+      <input
+        ref={input}
+        type="file"
+        multiple
+        accept=".txt,.cho,.chopro,.chordpro,.crd,.pro,text/plain"
+        hidden
+        onChange={(e) => {
+          if (e.target.files?.length) void run(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      {msg ? <span className="muted-text">{msg}</span> : null}
     </>
   );
 }
@@ -185,7 +247,7 @@ function SongViewer({ song, notation, onBack, onEdit }: { song: BandSong; notati
 const KEYS: string[] = [];
 for (const sc of ['major', 'minor']) for (let r = 0; r < 12; r++) KEYS.push(`${r}:${sc}`);
 
-function SongEditor({ song, notation, onDone }: { song: BandSong | null; notation: Notation; onDone(id?: string): void }) {
+export function SongEditor({ song, notation, onDone }: { song: BandSong | null; notation: Notation; onDone(id?: string): void }) {
   const bandId = useBand((s) => s.activeId)!;
   const userId = useBand((s) => s.userId)!;
   const [title, setTitle] = useState(song?.title ?? '');
@@ -196,7 +258,31 @@ function SongEditor({ song, notation, onDone }: { song: BandSong | null; notatio
   const [key, setKey] = useState(song?.orig_key ? `${song.orig_key.root}:${song.orig_key.scale}` : '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [cleaned, setCleaned] = useState<string | null>(null);
   const guessed = sheetOrigKey(sheet, null);
+
+  /** Aplica lo detectado al importar/pegar sin pisar lo que el usuario ya escribió. */
+  const applyImport = (r: ImportedSheet, keepSheetIfEmpty: boolean) => {
+    if (r.sheet || !keepSheetIfEmpty) setSheet(r.sheet);
+    const found: string[] = [];
+    if (r.title && !title.trim()) {
+      setTitle(r.title);
+      found.push('título');
+    }
+    if (r.artist && !artist.trim()) {
+      setArtist(r.artist);
+      found.push('autor');
+    }
+    if (r.key && !key) {
+      setKey(`${r.key.root}:${r.key.scale}`);
+      found.push(`tono ${keyLabel(mk(r.key), notation)}`);
+    }
+    if (r.bpm && !bpm) {
+      setBpm(String(r.bpm));
+      found.push(`${r.bpm} bpm`);
+    }
+    setCleaned(`Formato limpio${found.length ? ' · detecté ' + found.join(', ') : ''}. Revísalo antes de guardar.`);
+  };
   const chordCount = parseSheet(sheet).reduce((n, l) => n + l.chords.length, 0);
 
   const save = async () => {
@@ -245,6 +331,23 @@ function SongEditor({ song, notation, onDone }: { song: BandSong | null; notatio
         </button>
       </div>
       {err ? <p className="err-text">{err}</p> : null}
+      <div className="import-help">
+        <div>
+          <b>¿La canción ya está en internet?</b>
+          <span>Búscala, copia la cifra completa y pégala abajo: la app limpia el formato y detecta el tono.</span>
+        </div>
+        <div className="row-btns">
+          {searchLinks(`${title} ${artist}`.trim() || 'alabanza').map((l) => (
+            <a key={l.label} className="ctl small link-btn" href={l.url} target="_blank" rel="noreferrer">
+              🔎 {l.label}
+            </a>
+          ))}
+          <button className="ctl small" type="button" onClick={() => applyImport(cleanPastedSheet(sheet), true)} disabled={!sheet.trim()}>
+            🧹 Limpiar formato
+          </button>
+        </div>
+      </div>
+      {cleaned ? <div className="ok-text small-note">✓ {cleaned}</div> : null}
       <div className="form-grid">
         <label className="field">
           Título
@@ -279,6 +382,14 @@ function SongEditor({ song, notation, onDone }: { song: BandSong | null; notatio
           className="cifra-input"
           value={sheet}
           onChange={(e) => setSheet(e.target.value)}
+          onPaste={(e) => {
+            // Pegado inteligente: si el campo está vacío, limpiar lo que viene de LaCuerda / Cifra Club
+            if (sheet.trim()) return;
+            const text = e.clipboardData.getData('text/plain');
+            if (!text) return;
+            e.preventDefault();
+            applyImport(/^\s*\{\s*(title|t)\s*:/im.test(text) ? parseChordProFile(text) : cleanPastedSheet(text), false);
+          }}
           spellCheck={false}
           placeholder={'[Intro] G  D  Em  C\n\nG                D/F#\nCuán grande es Él\n    Em            C\nque mi alma canta…'}
         />

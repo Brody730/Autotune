@@ -313,3 +313,27 @@ sequenceDiagram
 - **Causa**: `create_band` usaba `gen_random_bytes` (extensión pgcrypto). En Supabase las extensiones viven en el esquema `extensions`, y la función tenía `search_path = public`, así que no la encontraba.
 - **Arreglo**: el código de invitación se genera con `random()` sobre un alfabeto sin caracteres confusos (sin 0/O, 1/I/L). Ya no se necesita ninguna extensión.
 - Archivos: `supabase/bands.sql` (corregido), `supabase/fix_create_band.sql` (solo la función, para aplicar el arreglo sin repetir todo).
+
+---
+
+## 2026-11-09 — Agregar canciones a la bóveda: pegado inteligente, búsqueda e importación de archivos
+
+### Decisión: no se descarga automáticamente de LaCuerda / Cifra Club
+Se evaluó "jalar" cifras automáticamente de esos sitios y se descartó:
+- Las letras y cifrados tienen derechos de autor y los términos de esos sitios prohíben copiarlos de forma automatizada (scraping). Hacerlo desde la app, para todos sus usuarios, expone el proyecto a reclamos y a la baja del hosting.
+- No tienen API ni CORS; habría que raspar su HTML desde un servidor, y bloquean accesos automáticos y cambian su página con frecuencia.
+
+En su lugar, la persona de la banda busca la canción, **copia y pega** (uso privado de su ministerio) y la app hace el resto.
+
+### Cambio
+- `src/song/importSheet.ts`:
+  - `cleanPastedSheet`: quita tablaturas (`E|---`), «Afinación», «Capo», «Composição», «Ver tradução», «Imprimir», avisos, etc.; detecta **tono** (`Tom: G`, `Tono: Sol`, `Key: D`), **BPM**, **título y autor** (`Título - Autor` o dos primeras líneas).
+  - `parseChordProFile`: archivos ChordPro (`{title}`, `{artist}`, `{key}`, `{tempo}`, `{soc}`/`{eoc}`, `{comment}`) → formato de la app. Compatible con exportaciones de **CCLI SongSelect** (fuente con licencia para iglesias), OnSong, etc.
+  - `searchLinks`: búsqueda en LaCuerda, Cifra Club y Google (se abre en el navegador).
+- Editor de la bóveda: botones 🔎 LaCuerda / Cifra Club / Google, **pegado inteligente** (al pegar en el campo vacío se limpia y se llenan título/autor/tono/BPM sin pisar lo ya escrito) y «🧹 Limpiar formato».
+- Bóveda: «📂 Importar archivos» — varios `.cho/.chordpro/.pro/.txt` a la vez; omite los que ya existen.
+- `chords.ts`: cualquier `[Algo]` suelto que no sea acorde (p. ej. `[Primera Parte]`) cuenta como sección.
+
+### Verificado
+- Pegado simulado de una cifra estilo Cifra Club en el editor: título «Santo Santo Santo», autor «Himno», tono Re Mayor detectados; tablatura y textos del sitio eliminados; 12 acordes reconocidos.
+- ChordPro con `{soc}`, `{comment}`, `{key}`, `{tempo}` convertido correctamente.

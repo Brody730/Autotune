@@ -2256,6 +2256,36 @@ select {
 .form-grid select {
   height: 38px;
 }
+.import-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(89, 208, 255, 0.4);
+  background: rgba(89, 208, 255, 0.05);
+}
+.import-help > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  flex: 1;
+}
+.import-help span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.small-note {
+  font-size: 0.85rem;
+}
 .cifra-input {
   min-height: 340px;
   resize: vertical;

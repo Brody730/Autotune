@@ -62,7 +62,15 @@ export interface Sheet {
   key: MusicalKey | null;
 }
 
-const SECTION_RE = /^\s*[[(]?\s*(intro|coro|estrofa|verso|puente|pre-?coro|final|outro|interludio|chorus|verse|bridge|tag|instrumental|solo)\b.*$/i;
+const SECTION_WORDS = /^\s*[[(]?\s*(intro|coro|estrofa|verso|puente|pre-?coro|final|outro|interludio|chorus|verse|bridge|tag|instrumental|solo|primera|segunda|tercera|parte)\b.*$/i;
+/** Encabezado de sección: palabra conocida, o cualquier «[Algo]» suelto que no sea un acorde. */
+const SECTION_RE = {
+  test(line: string): boolean {
+    if (SECTION_WORDS.test(line)) return true;
+    const m = /^\s*\[([^\]]+)\]\s*:?\s*$/.exec(line);
+    return !!m && !parseChord(m[1]);
+  },
+};
 
 function chordTokens(line: string): { pos: number; text: string }[] {
   const out: { pos: number; text: string }[] = [];
