@@ -88,7 +88,15 @@ export class PracticeSession {
     private stream: MediaStream,
     readonly tl: Timeline,
     readonly style: Style,
-    private opts: { guide: boolean; latencyMs: number; volume: number; record: boolean; title: string },
+    private opts: {
+      guide: boolean;
+      latencyMs: number;
+      volume: number;
+      record: boolean;
+      title: string;
+      /** Pistas de la grabación original (MP3 por instrumento); «bass» hace de bajo guía. */
+      audio?: Record<string, Blob>;
+    },
   ) {
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
     this.master = this.ctx.createGain();
@@ -110,6 +118,10 @@ export class PracticeSession {
   }
   setVolume(v: number) {
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
+  }
+
+  private get clickSec() {
+    return this.tl.clickSec ?? this.tl.beatSec;
   }
 
   /** Pulso actual de la canción (negativo durante la cuenta). */
@@ -150,7 +162,20 @@ export class PracticeSession {
     src.connect(inGain).connect(this.recDest);
     this.nodes = [src, hp, lp, wk, mute, inGain];
 
-    this.t0 = ctx.currentTime + 0.4 + this.tl.countInBeats * this.tl.beatSec;
+    // Pista original: decodificar antes de fijar el inicio, y lanzar todo en el mismo instante
+    const buffers: [string, AudioBuffer][] = [];
+    for (const [name, blob] of Object.entries(this.opts.audio ?? {})) {
+      buffers.push([name, await ctx.decodeAudioData(await blob.arrayBuffer())]);
+      if (this.stopped) return;
+    }
+    this.t0 = ctx.currentTime + 0.4 + this.tl.countInBeats * this.clickSec;
+    for (const [name, buf] of buffers) {
+      const s = ctx.createBufferSource();
+      s.buffer = buf;
+      s.connect(name === 'bass' ? this.guide : this.backing);
+      s.start(this.t0);
+      this.nodes.push(s);
+    }
     this.nextCount = 0;
     this.timer = window.setInterval(() => this.schedule(), 25);
     this.schedule();
@@ -169,7 +194,7 @@ export class PracticeSession {
     const bt = (beat: number) => this.t0 + beat * this.tl.beatSec;
     // Cuenta de entrada
     while (this.nextCount < this.tl.countInBeats) {
-      const t = this.t0 - (this.tl.countInBeats - this.nextCount) * this.tl.beatSec;
+      const t = this.t0 - (this.tl.countInBeats - this.nextCount) * this.clickSec;
       if (t > horizon) break;
       this.click(t, this.nextCount % this.tl.beatsPerBar === 0);
       this.nextCount++;
@@ -380,7 +405,8 @@ export class PracticeSession {
       this.maxStreak = Math.max(this.maxStreak, this.streak);
       this.played.push({ beat, midi, target: best });
     } else {
-      const chordIdx = Math.max(0, Math.min(this.tl.chords.length - 1, Math.floor(beat / (this.tl.chords[0]?.endBeat || 1))));
+      const found = this.tl.chords.findIndex((c) => beat < c.endBeat);
+      const chordIdx = found < 0 ? this.tl.chords.length - 1 : found;
       const inChord = this.tl.chords[chordIdx]?.tones.includes(pc);
       this.played.push({ beat, midi, target: null, kind: inChord ? 'acorde' : 'paso' });
     }

@@ -57,6 +57,13 @@ export interface Timeline {
   lines: TLLine[];
   bass: TLBass[];
   hits: TLHit[];
+  /**
+   * Pista original (grabación real): los «pulsos» son segundos (beatSec = 1)
+   * y el acompañamiento es el audio, no el sintetizador.
+   */
+  audio?: boolean;
+  /** Segundos entre los clics de la cuenta de entrada (si no, un pulso). */
+  clickSec?: number;
 }
 
 export const BASS_STRINGS = [28, 33, 38, 43]; // E1 A1 D2 G2

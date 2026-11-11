@@ -3210,3 +3210,26 @@ select {
     transition: none;
   }
 }
+
+.form-grid[hidden] {
+  display: none;
+}
+.engine-steps {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.engine-steps li + li {
+  margin-top: 6px;
+}
+.engine-off details {
+  align-self: stretch;
+}
+.engine-off summary {
+  cursor: pointer;
+  color: var(--amber);
+  font-weight: 600;
+}
+.engine-off details p {
+  margin-top: 8px;
+}

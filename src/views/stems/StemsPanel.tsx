@@ -5,7 +5,21 @@ import { store } from '../../lib/store';
 import { fetchLyrics } from '../../song/api';
 import { sheetKeyFor } from '../../song/ChordSheet';
 import { parseLrc } from '../../song/lyrics';
-import { ChordSeg, deleteEngineTrack, downloadZip, EngineTrack, engineHealth, fetchStem, getJob, Health, Job, startFileJob, startJob } from '../../stems/api';
+import {
+  ChordSeg,
+  deleteEngineTrack,
+  downloadZip,
+  EngineTrack,
+  engineHealth,
+  fetchStem,
+  getJob,
+  Health,
+  INSTALLER_URL,
+  Job,
+  localAccessBlocked,
+  startFileJob,
+  startJob,
+} from '../../stems/api';
 import { deleteTrack, getStems, getTrack, saveTrack, StoredTrack, updateTrack, useTracks } from '../../stems/db';
 import { barsOf, buildSheet, chordIndexAt, chordLabel, chordsInBar, editedKey, fmtTime, notesText } from '../../stems/notes';
 import { StemPlayer } from '../../stems/player';
@@ -148,15 +162,82 @@ function EngineStatus({ health }: { health: Health | null | undefined }) {
       </div>
     );
   }
+  return <EngineSetup />;
+}
+
+/** Sin motor: explica qué es y cómo conseguirlo, sin dar nada por sabido. */
+function EngineSetup() {
+  const [blocked, setBlocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () => void localAccessBlocked().then((b) => alive && setBlocked(b));
+    check();
+    const id = window.setInterval(check, 4000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, []);
+  const windows = /Windows/i.test(navigator.userAgent);
+
+  // Una página abierta en la propia PC (localhost) no necesita ese permiso
+  const local = /^(localhost|127.0.0.1)$/.test(location.hostname);
+  const blockedNote =
+    blocked && !local ? (
+      <div className="acard engine-off">
+        <h3>🔒 Tu navegador está bloqueando la conexión con el Motor de pistas</h3>
+        <p className="muted-text">Esta página necesita permiso para hablar con el programa que corre en tu PC. Para dárselo:</p>
+        <ol className="engine-steps">
+          <li>
+            Haz clic en el icono que está a la izquierda de la dirección de la página (candado o controles) y entra a <b>Configuración del sitio</b>.
+          </li>
+          <li>
+            Busca <b>Acceso a la red local</b> (en Brave: <b>Acceso a localhost</b>) y elige <b>Permitir</b>.
+          </li>
+          <li>Vuelve aquí y recarga la página.</li>
+        </ol>
+        <p className="muted-text">Si todavía no instalas el Motor de pistas, primero sigue los pasos de abajo.</p>
+      </div>
+    ) : null;
+
   return (
-    <div className="acard engine-off">
-      <h3>⚠ El motor de pistas no está abierto</h3>
+    <>
+      {blockedNote}
+      <div className="acard engine-off">
+      <h3>Para separar canciones necesitas el Motor de pistas</h3>
       <p className="muted-text">
-        Separar instrumentos necesita un programa que corre en tu PC (no cabe en la página). En la carpeta del proyecto abre <b>stem-server</b> y haz doble clic en{' '}
-        <b>iniciar.bat</b> (la primera vez, antes, <b>instalar.bat</b>). Déjalo abierto y esta pantalla se conecta sola.
+        Separar los instrumentos de una canción es un trabajo pesado que no cabe en una página web, así que lo hace un programa gratuito que se instala en tu computadora. Tu música no sale de tu PC.
       </p>
-      <p className="muted-text">Las pistas que ya guardaste se pueden practicar sin el motor.</p>
-    </div>
+      {windows ? (
+        <>
+          <ol className="engine-steps">
+            <li>
+              <a className="cta" href={INSTALLER_URL} download>
+                ⬇ Descargar el instalador
+              </a>
+            </li>
+            <li>
+              Abre el archivo descargado. Si Windows muestra un aviso azul, elige <b>Más información → Ejecutar de todas formas</b>. Descarga unos 3 GB y tarda entre 10 y 20 minutos.
+            </li>
+            <li>
+              Al terminar se abre una ventana negra: es el motor. Déjala abierta y esta pantalla se conecta sola. La próxima vez ábrelo con el acceso directo <b>Motor de pistas</b> de tu escritorio.
+            </li>
+          </ol>
+          <p className="muted-text">Requisitos: Windows 10 u 11 y unos 6 GB libres. Con tarjeta de video NVIDIA cada canción tarda 1–2 minutos; sin ella, varios minutos.</p>
+          <details>
+            <summary>Ya lo tengo abierto y no se conecta</summary>
+            <p className="muted-text">
+              Si el navegador pregunta si esta página puede conectarse a dispositivos de tu red local, elige <b>Permitir</b>. Si ya lo rechazaste: icono a la izquierda de la dirección →{' '}
+              <b>Configuración del sitio</b> → <b>Acceso a la red local</b> (en Brave: <b>Acceso a localhost</b>) → <b>Permitir</b>, y recarga la página.
+            </p>
+          </details>
+        </>
+      ) : (
+        <p className="muted-text">Por ahora el motor solo existe para computadoras con Windows.</p>
+      )}
+      <p className="muted-text">Las pistas que ya guardaste en este dispositivo se pueden practicar sin el motor.</p>
+      </div>
+    </>
   );
 }
 
@@ -554,7 +635,7 @@ function TrackView({ id, notation, liveMidi, engine, onBack }: { id: string; not
           <button className="cta" disabled={!dirty || !engine || !!busy} onClick={() => void applyEdit()}>
             Aplicar cambios
           </button>
-          {dirty && !engine ? <span className="err-text">Abre el motor de pistas para aplicar cambios de tono o velocidad.</span> : null}
+          {dirty && !engine ? <span className="err-text">Abre el Motor de pistas en tu PC para aplicar cambios de tono o velocidad.</span> : null}
           <span className="muted-text">Cambia el tono sin cambiar la velocidad (y al revés). Las notas y acordes se transportan solos.</span>
         </div>
       </div>
@@ -596,8 +677,11 @@ function TrackView({ id, notation, liveMidi, engine, onBack }: { id: string; not
       )}
 
       <div className="acard">
-        <h3>⬇ Descargar</h3>
+        <h3>Practicar y descargar</h3>
         <div className="row-btns">
+          <button className="ctl" onClick={() => window.dispatchEvent(new CustomEvent('lsa:practice', { detail: sheetKeyFor(track.title) }))} title="Tocar sobre la grabación original con puntaje">
+            🎮 Practicar con puntaje
+          </button>
           <button className="cta" disabled={!engine || !!busy} onClick={() => void zip()}>
             Descargar ZIP: mezcla + pistas + notas
           </button>
@@ -605,7 +689,7 @@ function TrackView({ id, notation, liveMidi, engine, onBack }: { id: string; not
             {busy ??
               (engine
                 ? `Incluye la mezcla con los volúmenes de arriba${player?.loop ? ' (solo el tramo A–B)' : ''}, un MP3 por instrumento, las notas en texto, el cifrado y un MIDI.`
-                : 'Abre el motor de pistas para generar el ZIP. Las notas en texto se pueden bajar sin él (pestaña «Notas en texto»).')}
+                : 'Abre el Motor de pistas en tu PC para generar el ZIP. Las notas en texto se pueden bajar sin él (pestaña «Notas en texto»).')}
           </span>
         </div>
       </div>

@@ -13,3 +13,4 @@ stem-server/bin
 stem-server/models
 stem-server/data
 __pycache__
+public/motor

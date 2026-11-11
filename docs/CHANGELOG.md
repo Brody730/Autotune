@@ -462,3 +462,24 @@ flowchart LR
 ### Archivos
 - Nuevo: `src/views/Tour.tsx`.
 - Modificados: `src/App.tsx` (marcas `data-tour`, botón «?»), `src/views/stems/StemsPanel.tsx`, `src/index.css`, `stem-server/README.md`.
+
+---
+
+## 2026-11-11 — Práctica automática con la pista original e instalador del Motor de pistas
+
+### Práctica: «Original (automático)»
+- Si la canción elegida ya se separó en 🎚 Pistas, Práctica ofrece (y elige por defecto) **Original (automático)**: suena la grabación real sin el bajo, a su tempo y en su tono, y las notas a tocar son las que toca el bajo en ella. No hay que escoger estilo, BPM ni compases.
+- El «bajo guía» en este modo es el bajo original de la grabación. Hay puntaje, racha, grabación de la toma y karaoke con la letra sincronizada, igual que en los estilos.
+- Las canciones separadas aparecen en la lista aunque no tengan cifrado, marcadas «🎚 con pista original». Desde Pistas hay un botón **🎮 Practicar con puntaje**.
+- Con un estilo sintético, el BPM inicial ahora es el tempo real detectado de la canción.
+- `engine.ts` reproduce los MP3 de la pista en el mismo reloj que la detección; `trackTimeline.ts` arma la línea de tiempo (en segundos) desde el análisis.
+- Probado alimentando el detector con el bajo real de la canción: 11 de 14 notas acertadas en los primeros 37 s. **No probado con un bajo en vivo.**
+- Límite: las notas esperadas dependen de la transcripción automática, que se salta notas y a veces se equivoca; lo que toques de más cuenta como «nota propia», no como error.
+
+### Motor de pistas pensado para el usuario final
+- Causa de la alerta: la página publicada (HTTPS) intentaba conectarse al motor en la PC y **el navegador lo bloquea** hasta que se le da permiso («Acceso a la red local» en Chrome/Edge, «Acceso a localhost» en Brave). El mensaje culpaba a un `.bat` que el usuario final no tiene.
+- La pantalla sin motor ahora explica qué es, ofrece **Descargar el instalador** (lo sirve la propia página en `/motor/`), los 3 pasos, los requisitos y qué hacer si el navegador bloquea la conexión. Si el permiso está denegado, lo dice arriba con los pasos para permitirlo.
+- `stem-server/instalador-web.bat`: instala el motor en `%LOCALAPPDATA%\LiveStageAssistant\motor`, sin necesitar el código del proyecto, y crea el acceso directo «Motor de pistas» en el escritorio.
+- `scripts/sync-motor.mjs` (antes de `dev` y `build`) copia el motor a `public/motor`.
+- **No probado de punta a punta**: se verificó la descarga de archivos y el lanzador, no la instalación completa de 3 GB en una PC limpia.
+- Sigue siendo solo para Windows y no sirve en el celular.

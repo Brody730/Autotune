@@ -30,7 +30,7 @@ export function Highway({ session, flatsNames }: { session: PracticeSession; fla
       const tl = session.tl;
       const now = session.beatNow();
       const hitX = Math.round(W * 0.18);
-      const pxPerBeat = Math.max(70, Math.min(200, W / (tl.beatsPerBar * 2.2)));
+      const pxPerBeat = tl.audio ? Math.max(90, Math.min(160, W / 7)) : Math.max(70, Math.min(200, W / (tl.beatsPerBar * 2.2)));
       const top = 34;
       const laneH = (H - top - 10) / 4;
       const laneY = (s: number) => top + (3 - s) * laneH + laneH / 2; // Sol arriba
@@ -38,7 +38,7 @@ export function Highway({ session, flatsNames }: { session: PracticeSession; fla
 
       // Compases
       for (let b = Math.floor(now - hitX / pxPerBeat); b < now + (W - hitX) / pxPerBeat + 1; b++) {
-        if (b < 0 || b > tl.totalBeats) continue;
+        if (b < 0 || b > tl.totalBeats || tl.audio) continue;
         const bar = b % tl.beatsPerBar === 0;
         g.strokeStyle = bar ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)';
         g.lineWidth = bar ? 2 : 1;
@@ -120,7 +120,7 @@ export function Highway({ session, flatsNames }: { session: PracticeSession; fla
         g.fillStyle = '#fff';
         g.font = `800 ${Math.round(H * 0.35)}px Bahnschrift, system-ui`;
         g.textAlign = 'center';
-        g.fillText(String(Math.ceil(-now)), W / 2, H * 0.62);
+        g.fillText(String(Math.max(1, Math.ceil(-now * (tl.clickSec ? tl.beatSec / tl.clickSec : 1)))), W / 2, H * 0.62);
         g.textAlign = 'left';
       }
       // Nota que suena ahora

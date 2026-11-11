@@ -7,6 +7,27 @@
 
 export const ENGINE_URL = (import.meta.env.VITE_STEMS_URL as string | undefined) || 'http://127.0.0.1:8765';
 
+/** Dónde se descarga el instalador del motor (lo sirve la propia página). */
+export const INSTALLER_URL = `${import.meta.env.BASE_URL}motor/instalar-motor-de-pistas.bat`;
+
+const OFFLINE = 'Se perdió la conexión con el Motor de pistas. Ábrelo desde el acceso directo «Motor de pistas» de tu escritorio y vuelve a intentarlo.';
+
+/**
+ * ¿El navegador tiene bloqueada la conexión de esta página con programas de
+ * la propia PC? (Chrome/Edge: permiso «Acceso a la red local».) null = no se sabe.
+ */
+export async function localAccessBlocked(): Promise<boolean | null> {
+  for (const name of ['loopback-network', 'local-network-access']) {
+    try {
+      const st = await navigator.permissions.query({ name: name as PermissionName });
+      return st.state === 'denied';
+    } catch {
+      /* este navegador no conoce ese permiso */
+    }
+  }
+  return null;
+}
+
 export interface Note {
   /** Segundo de inicio. */
   t: number;
@@ -67,7 +88,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(ENGINE_URL + path, init);
   } catch {
-    throw new Error('No hay conexión con el motor de pistas. ¿Está abierto «iniciar.bat»?');
+    throw new Error(OFFLINE);
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
@@ -107,7 +128,7 @@ export async function fetchStem(trackId: string, stem: string, semitones = 0, sp
   try {
     res = await fetch(`${ENGINE_URL}/tracks/${trackId}/stem/${stem}.mp3?semitones=${semitones}&speed=${speed}`);
   } catch {
-    throw new Error('No hay conexión con el motor de pistas.');
+    throw new Error(OFFLINE);
   }
   if (!res.ok) throw new Error(`No se pudo bajar la pista «${stem}» (${res.status}). Puede que ya no esté en el motor: vuelve a separarla.`);
   return res.blob();
@@ -125,7 +146,7 @@ export async function downloadZip(
       body: JSON.stringify(opts),
     });
   } catch {
-    throw new Error('No hay conexión con el motor de pistas.');
+    throw new Error(OFFLINE);
   }
   if (!res.ok) throw new Error(res.status === 404 ? 'Esta pista ya no está en el motor: vuelve a separarla para descargar el ZIP.' : `Error ${res.status}`);
   return res.blob();

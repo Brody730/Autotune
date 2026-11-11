@@ -7,6 +7,10 @@ import { defaultLatencyMs, PracticeSession, Results } from '../../practice/engin
 import { addPractice, bestScore, practiceHistory } from '../../practice/history';
 import { STYLES, styleById } from '../../practice/styles';
 import { buildTimeline, progressionOf } from '../../practice/timeline';
+import { buildTrackTimeline } from '../../practice/trackTimeline';
+import { sheetKeyFor } from '../../song/ChordSheet';
+import { getStems, useTracks } from '../../stems/db';
+import { editedKey } from '../../stems/notes';
 import { shiftedKey } from '../../song/chords';
 import { Panel } from '../LibraryPanel';
 import { sheetOrigKey } from '../band/SheetText';
@@ -19,7 +23,7 @@ interface PracticeSong {
   sheet: string;
   orig: { root: number; scale: 'major' | 'minor' } | null;
   bpm: number | null;
-  from: 'banda' | 'mía';
+  from: 'banda' | 'mía' | 'pista';
 }
 
 function readNum(k: string, d: number) {
@@ -51,17 +55,29 @@ export function PracticePanel({
 }) {
   const vault = useBand((s) => s.songs);
   const mine = useStore((d) => d.songs);
+  const tracksRaw = useTracks();
+  const tracks = useMemo(() => tracksRaw ?? [], [tracksRaw]);
   const songs = useMemo<PracticeSong[]>(() => {
     const out: PracticeSong[] = vault.map((v) => ({ key: v.song_key, title: v.title, artist: v.artist, sheet: v.sheet, orig: sheetOrigKey(v.sheet, v.orig_key), bpm: v.bpm, from: 'banda' }));
     for (const s of Object.values(mine)) {
       if (s.deleted || !s.sheet || out.some((o) => o.key === s.key)) continue;
       out.push({ key: s.key, title: s.title, artist: s.artist, sheet: s.sheet, orig: sheetOrigKey(s.sheet, s.origKey), bpm: null, from: 'mía' });
     }
-    return out.filter((s) => progressionOf(s.sheet).length > 0).sort((a, b) => a.title.localeCompare(b.title));
-  }, [vault, mine]);
+    // Canciones separadas en 🎚 Pistas que no tienen cifrado guardado
+    for (const t of tracks) {
+      const key = sheetKeyFor(t.title);
+      if (!out.some((o) => o.key === key)) out.push({ key, title: t.title, artist: t.artist, sheet: t.sheet, orig: t.analysis.key, bpm: null, from: 'pista' });
+    }
+    return out.filter((s) => s.from === 'pista' || progressionOf(s.sheet).length > 0).sort((a, b) => a.title.localeCompare(b.title));
+  }, [vault, mine, tracks]);
 
   const [songKey, setSongKey] = useState<string>(() => initialSongKey ?? '');
   const song = songs.find((s) => s.key === songKey) ?? songs[0] ?? null;
+  // Si la canción ya se separó en 🎚 Pistas, se practica sobre la grabación original
+  const track = useMemo(() => (song ? tracks.find((t) => sheetKeyFor(t.title) === song.key && t.analysis.bass.length > 0) ?? null : null), [song, tracks]);
+  const [preferOriginal, setPreferOriginal] = useState(true);
+  const original = !!track && preferOriginal;
+  const [starting, setStarting] = useState(false);
   const [styleId, setStyleId] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('lsa.practice.style')) || 'nortena');
   const style = styleById(styleId);
   const [bpm, setBpm] = useState(() => song?.bpm ?? style.defaultBpm);
@@ -81,12 +97,15 @@ export function PracticePanel({
 
   // Al cambiar de canción/estilo, BPM sugerido
   useEffect(() => {
-    setBpm(song?.bpm ?? style.defaultBpm);
+    // Con pista separada se conoce el tempo real de la canción
+    setBpm(song?.bpm ?? (track ? Math.round(track.analysis.bpm) : style.defaultBpm));
     setBarsPerChord(style.beatsPerBar <= 3 ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song?.key, styleId]);
+  }, [song?.key, styleId, track?.id]);
 
-  const flats = keyUsesFlats(song?.orig ? shiftedKey({ ...song.orig, confidence: 1 } as MusicalKey, shift) : null);
+  const flats = keyUsesFlats(
+    original && track ? editedKey(track.analysis, track.edit.semitones) : song?.orig ? shiftedKey({ ...song.orig, confidence: 1 } as MusicalKey, shift) : null,
+  );
   const nameOf = useMemo(() => (m: number) => pcName(m, notation, flats), [notation, flats]);
 
   const start = async () => {
@@ -97,12 +116,22 @@ export function PracticePanel({
       return;
     }
     if (!song) return;
-    const tl = buildTimeline({ sheet: song.sheet, style, bpm, shift, barsPerChord, notation, flats, maxChords });
+    const tl = original && track ? buildTrackTimeline(track, notation) : buildTimeline({ sheet: song.sheet, style, bpm, shift, barsPerChord, notation, flats, maxChords });
     if (!tl.bass.length) {
       setError('Esta canción no tiene acordes reconocibles para practicar.');
       return;
     }
-    const s = new PracticeSession(stream, tl, style, { guide, latencyMs: latency, volume, record, title: `${song.title} (${style.name})` });
+    setStarting(true);
+    let audio: Record<string, Blob> | undefined;
+    if (original && track) {
+      audio = await getStems(track).catch(() => undefined);
+      if (!audio || !Object.keys(audio).length) {
+        setStarting(false);
+        setError('No encontré el audio de esta pista en este dispositivo. Vuelve a separarla en 🎚 Pistas o elige un estilo.');
+        return;
+      }
+    }
+    const s = new PracticeSession(stream, tl, style, { guide, latencyMs: latency, volume, record, title: `${song.title} (${original ? 'original' : style.name})`, audio });
     s.onChange = force;
     sessionRef.current = s;
     try {
@@ -113,6 +142,8 @@ export function PracticePanel({
       setSession(s);
     } catch (e) {
       setError(`No se pudo iniciar el audio: ${(e as Error).message}`);
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -128,9 +159,9 @@ export function PracticePanel({
         id: `${Date.now()}`,
         songKey: song.key,
         title: song.title,
-        style: style.id,
-        bpm,
-        shift,
+        style: original ? 'original' : style.id,
+        bpm: s.tl.bpm,
+        shift: original ? 0 : shift,
         score: r.score,
         perfect: r.perfect,
         good: r.good,
@@ -163,8 +194,8 @@ export function PracticePanel({
         <ResultsView
           r={results}
           title={song?.title ?? ''}
-          styleName={style.name}
-          best={song ? bestScore(song.key, style.id) : null}
+          styleName={original ? 'Pista original' : style.name}
+          best={song ? bestScore(song.key, original ? 'original' : style.id) : null}
           latency={latency}
           onAdjustLatency={(ms) => {
             setLatency(ms);
@@ -189,17 +220,26 @@ export function PracticePanel({
               {songs.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.title} {s.from === 'banda' ? '· bóveda' : ''}
+                  {tracks.some((t) => sheetKeyFor(t.title) === s.key) ? ' · 🎚 con pista original' : ''}
                 </option>
               ))}
             </select>
           </label>
 
           <div className="style-grid">
+            {track ? (
+              <button className={`style-card ${original ? 'on' : ''}`} onClick={() => setPreferOriginal(true)}>
+                <span className="sc-emoji">🎚</span>
+                <b>Original (automático)</b>
+                <small>grabación real · {Math.round(track.analysis.bpm * track.edit.speed)} bpm</small>
+              </button>
+            ) : null}
             {STYLES.map((s) => (
               <button
                 key={s.id}
-                className={`style-card ${s.id === styleId ? 'on' : ''}`}
+                className={`style-card ${!original && s.id === styleId ? 'on' : ''}`}
                 onClick={() => {
+                  setPreferOriginal(false);
                   setStyleId(s.id);
                   try {
                     localStorage.setItem('lsa.practice.style', s.id);
@@ -216,9 +256,14 @@ export function PracticePanel({
               </button>
             ))}
           </div>
-          <div className="suggest dim">💡 {style.tip}</div>
+          <div className="suggest dim">
+            💡{' '}
+            {original && track
+              ? `Automático: suena la grabación original sin el bajo, a su tempo y en su tono (${keyLabel(editedKey(track.analysis, track.edit.semitones), notation)}). Las notas a tocar son las que toca el bajo en ella (${track.analysis.bass.length} detectadas). Para cambiar tono o velocidad, edítala en 🎚 Pistas.`
+              : style.tip}
+          </div>
 
-          <div className="form-grid">
+          <div className="form-grid" hidden={original}>
             <label className="field">
               Velocidad: <b>{bpm} BPM</b>
               <input type="range" min={40} max={220} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} />
@@ -255,7 +300,7 @@ export function PracticePanel({
 
           <div className="form-grid">
             <label className="field row-check">
-              <input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> Bajo guía (la app toca la línea contigo)
+              <input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> {original ? 'Bajo original (suena el bajo de la grabación como guía)' : 'Bajo guía (la app toca la línea contigo)'}
             </label>
             <label className="field row-check">
               <input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} /> Grabar mi toma (con la pista)
@@ -293,10 +338,10 @@ export function PracticePanel({
 
           {error ? <p className="err-text">{error}</p> : null}
           <div className="row-btns">
-            <button className="cta big" onClick={() => void start()} disabled={!song}>
-              ▶ Tocar
+            <button className="cta big" onClick={() => void start()} disabled={!song || starting}>
+              {starting ? 'Preparando la pista…' : '▶ Tocar'}
             </button>
-            {song ? <span className="muted-text">Tu mejor puntaje aquí: {bestScore(song.key, style.id) ?? '—'}{bestScore(song.key, style.id) !== null ? '%' : ''}</span> : null}
+            {song ? <span className="muted-text">Tu mejor puntaje aquí: {bestScore(song.key, original ? 'original' : style.id) ?? '—'}{bestScore(song.key, original ? 'original' : style.id) !== null ? '%' : ''}</span> : null}
           </div>
           <RecentPractice />
         </div>
@@ -551,7 +596,7 @@ function RecentPractice() {
             <div className="ri-main">
               <b>{p.title}</b>
               <span>
-                {styleById(p.style).name} · {p.bpm} BPM · {new Date(p.date).toLocaleDateString()}
+                {p.style === 'original' ? 'Pista original' : styleById(p.style).name} · {p.bpm} BPM · {new Date(p.date).toLocaleDateString()}
               </span>
             </div>
             <span className={`tag ${p.score >= 70 ? 'amber' : ''}`}>{p.score}%</span>
