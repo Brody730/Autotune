@@ -400,3 +400,65 @@ flowchart LR
 - `timeline.ts`: cada acorde guarda su línea de letra (`lineIdx`) y su posición en ella (`posInLine`); `Timeline.lines` trae la letra con los acordes ya transportados.
 - El texto antes del primer acorde se une a su tramo (no queda un pedacito suelto).
 - Verificado en el navegador: en el pulso 4.5 se ilumina «ngo a decir» bajo «Mi» y «Te vengo a decir, te ve» (bajo «La») queda apagado; en el pulso 8.5 cambia a «Que yo te amo a ti».
+
+---
+
+## 2026-11-11 — 🎚 Pistas: separar una canción de YouTube en instrumentos, sacar sus notas y practicar sobre la original
+
+Inspirado en [stemkit](https://github.com/danielravina/stemkit). Stemkit es una app de escritorio (Electron + Python), así que no se puede incrustar en la página; se replicó su mismo flujo con un **motor local** al que la página se conecta.
+
+### Qué hace
+- **Enlace de YouTube → pistas**: voz, batería, bajo y otros (4 pistas) o además guitarra y piano (6 pistas). También acepta un archivo de audio propio.
+- **Notas automáticas**: tempo, tono, acordes por compás, notas del bajo (con cuerda y traste) y melodía de la voz. Con la letra sincronizada de LRCLIB se arma un **cifrado con los acordes sobre la letra**.
+- **Mezclador**: volumen, silencio (M) y solo (S) por pista, formas de onda con clic para saltar, repetición de un tramo A–B y atajos (Sin bajo, Karaoke, Bajo + batería…).
+- **Editar pista**: cambiar el tono (±6 semitonos) sin cambiar la velocidad y la velocidad (50–125 %) sin cambiar el tono; acordes y notas se transportan solos.
+- **Biblioteca**: cada canción queda guardada en el dispositivo (IndexedDB) y se puede practicar sin el motor y sin internet. El cifrado se guarda además en Biblioteca → Canciones (y por tanto sirve en 🎮 Práctica).
+- **Descarga**: ZIP con la mezcla (con tus volúmenes y, si hay, solo el tramo A–B), un MP3 por instrumento, `notas.txt`, `cifrado.txt` y `notas.mid`.
+
+### Decisiones técnicas
+- La separación (Demucs/PyTorch) y la descarga (yt-dlp) no pueden correr en Vercel ni en el navegador: viven en `stem-server/` (FastAPI en `127.0.0.1:8765`). Solo acepta peticiones de la app publicada y de `localhost`, y solo enlaces de YouTube de hasta 15 min.
+- Todo el entorno (Python 3.11 vía `uv`, ffmpeg de `imageio-ffmpeg`, modelos) queda dentro de `stem-server/` y fuera de git.
+- Análisis con `librosa`: pulsos sobre la batería, acordes mayor/menor por pulso (cromagrama + Viterbi, con el bajo empujando la fundamental), tono por Krumhansl, bajo y melodía con pYIN.
+- Reproductor: todas las pistas se decodifican y arrancan en el mismo instante del `AudioContext` (sincronía exacta).
+- Vite ya no vigila `stem-server/` (bloqueaba la carpeta de datos en Windows).
+
+### Límites conocidos
+- Los acordes y notas son una **estimación**: solo mayores/menores (sin 7ª ni inversiones), compás asumido de 4/4 y el tempo puede salir a la mitad o al doble.
+- No verificado desde la página publicada en Vercel (solo en `localhost`); Chrome puede pedir permiso para acceder a la red local.
+- No hay puntaje en esta pantalla: muestra tu nota en vivo contra la esperada, pero la calificación sigue siendo la de 🎮 Práctica.
+
+### Archivos
+- Nuevos: `stem-server/{server.py,analyze.py,requirements.txt,instalar.bat,iniciar.bat,actualizar-youtube.bat,README.md}`, `src/stems/{api,db,player,notes}.ts`, `src/views/stems/{StemsPanel,NoteRoad}.tsx`.
+- Modificados: `src/App.tsx` (botón y panel «Pistas»), `src/index.css`, `vite.config.ts`, `.gitignore`.
+
+```mermaid
+flowchart LR
+    YT[Enlace de YouTube] --> DL[yt-dlp + ffmpeg]
+    DL --> DM[Demucs en GPU<br/>voz · batería · bajo · …]
+    DM --> AN[Análisis: tempo, tono,<br/>acordes, bajo, melodía]
+    DM --> MP3[MP3 por pista]
+    AN --> WEB[Página: 🎚 Pistas]
+    MP3 --> WEB
+    WEB --> IDB[(Biblioteca local<br/>IndexedDB)]
+    WEB --> MIX[Mezclador · tramo A–B · tono/velocidad]
+    WEB --> ZIP[ZIP: mezcla + pistas + notas + MIDI]
+    LRC[LRCLIB: letra sincronizada] --> WEB
+```
+
+---
+
+## 2026-11-11 — Recorrido de bienvenida y aviso de «Pistas» en el celular
+
+### Recorrido de bienvenida
+- La primera vez que alguien abre la app se muestra un recorrido de 14 pasos que ilumina cada parte (nota y afinador, tonalidad, acordes, campo armónico, reconocimiento de canción, REC, Banda, Biblioteca, Práctica, Pistas, Cuenta y ajustes) y explica para qué sirve.
+- Se recuerda en el dispositivo (`lsa.tour.done`): no vuelve a salir solo. Se puede repetir con el botón **?** de la barra superior. No aparece al llegar por un enlace de invitación (`?unirse=`).
+- Se puede saltar, ir atrás y manejar con teclado (← → Enter, Esc). Mientras está abierto se oculta el aviso de micrófono para que se vea la pantalla.
+- La tarjeta se coloca debajo, arriba o a un lado del elemento según quepa; en el celular se ajusta al ancho de la pantalla.
+
+### Pistas en el celular
+- Queda claro que **no funciona en el celular**: al abrir 🎚 Pistas desde un teléfono sin motor se muestra «En el celular todavía no está disponible» y se oculta el formulario de YouTube. El recorrido y el README del motor dicen lo mismo.
+- Pendiente (idea): pasar las pistas ya separadas de la PC al celular por la red local con un código QR.
+
+### Archivos
+- Nuevo: `src/views/Tour.tsx`.
+- Modificados: `src/App.tsx` (marcas `data-tour`, botón «?»), `src/views/stems/StemsPanel.tsx`, `src/index.css`, `stem-server/README.md`.

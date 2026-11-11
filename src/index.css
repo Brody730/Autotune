@@ -2856,3 +2856,357 @@ select {
     background: #fff;
   }
 }
+
+/* ── Pistas: separación de instrumentos, mezclador y notas ───────────── */
+.stems-new {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.stems-new .filter {
+  flex: 1 1 260px;
+  margin: 0;
+}
+.stems-new select.ctl {
+  max-width: 250px;
+}
+.stems-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.engine-off {
+  border-color: rgba(255, 176, 46, 0.45);
+}
+.row-item[role='button'] {
+  color: inherit;
+}
+.stems-track {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.st-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.st-head .ri-main {
+  flex: 1;
+}
+.st-head .ri-main b {
+  font-family: var(--display);
+  font-size: 1.3rem;
+}
+.st-now {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #0d0d12, #060608);
+}
+.st-now .pp-chord {
+  min-width: 150px;
+}
+.st-transport {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+.st-time {
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+}
+.st-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.st-presets h3 {
+  margin: 0 8px 0 0;
+}
+.mixer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mx-row {
+  display: grid;
+  grid-template-columns: 108px 30px 30px 110px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.mx-row.off .mx-wave canvas {
+  opacity: 0.25;
+}
+.mx-row.off .mx-name {
+  color: var(--muted);
+}
+.mx-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mx-btn {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+.mx-btn.on.red {
+  background: var(--red);
+  border-color: var(--red);
+  color: #000;
+}
+.mx-btn.on.amber {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #000;
+}
+.mx-row input[type='range'],
+.stems-track .field input[type='range'] {
+  width: 100%;
+  accent-color: var(--amber);
+}
+.mx-wave {
+  position: relative;
+  height: 40px;
+  border-radius: 8px;
+  background: #000;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  cursor: pointer;
+}
+.mx-wave canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.mx-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--amber);
+  pointer-events: none;
+}
+.mx-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 176, 46, 0.18);
+  border-inline: 1px solid var(--amber);
+  pointer-events: none;
+}
+.chord-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 2px;
+}
+.cg-bar {
+  position: relative;
+  min-height: 52px;
+  padding: 14px 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+}
+.cg-bar b {
+  font-family: var(--display);
+  font-size: 1.2rem;
+}
+.cg-bar small {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.cg-bar.rest b {
+  color: var(--faint);
+}
+.cg-bar.on {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+}
+.cg-bar.on b {
+  color: var(--amber);
+}
+.note-road {
+  width: 100%;
+  height: 230px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #08080c, #000);
+  border: 1px solid var(--line);
+}
+.sheet-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sheet-text,
+.notes-text {
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: #000;
+  color: var(--text);
+  font: 0.9rem/1.45 Consolas, 'Cascadia Mono', monospace;
+  white-space: pre;
+  overflow: auto;
+}
+.notes-text {
+  max-height: 420px;
+}
+@media (max-width: 700px) {
+  .mx-row {
+    grid-template-columns: 92px 28px 28px 1fr;
+  }
+  .mx-wave {
+    grid-column: 1 / -1;
+    height: 30px;
+  }
+  .chord-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.stems-track .acard > *,
+.acard > .stems-new,
+.acard > .stems-progress,
+.acard > .list {
+  align-self: stretch;
+}
+.st-presets {
+  margin-bottom: 0;
+}
+.stems-track .field > span:first-child {
+  display: block;
+}
+
+/* ── Recorrido de bienvenida ─────────────────────────────────────────── */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 3, 5, 0.78);
+}
+/* «Agujero»: el elemento queda a la vista y todo lo demás se oscurece */
+.tour-hole {
+  position: absolute;
+  border-radius: 14px;
+  border: 2px solid var(--amber);
+  box-shadow:
+    0 0 0 9999px rgba(3, 3, 5, 0.78),
+    0 0 24px var(--amber-glow);
+  transition:
+    top 0.25s ease,
+    left 0.25s ease,
+    width 0.25s ease,
+    height 0.25s ease;
+  pointer-events: none;
+}
+.tour-card {
+  position: absolute;
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 18px 20px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: #111117;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.7);
+  transition:
+    top 0.25s ease,
+    left 0.25s ease;
+}
+.tour-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tour-emoji {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.tour-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.tour-card h2 {
+  margin: 10px 0 6px;
+  font-family: var(--display);
+  font-size: 1.45rem;
+  letter-spacing: 0.02em;
+  color: var(--amber);
+}
+.tour-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+.tour-card ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.tour-card li + li {
+  margin-top: 4px;
+}
+.tour-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 14px 0 12px;
+}
+.tour-bar div {
+  height: 100%;
+  background: var(--amber);
+  transition: width 0.25s ease;
+}
+.tour-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tour-spacer {
+  flex: 1;
+}
+.tour-btns .cta {
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole,
+  .tour-card,
+  .tour-bar div {
+    transition: none;
+  }
+}

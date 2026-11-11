@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // El motor de pistas (Python, modelos, audios) no es parte de la página
+  server: { watch: { ignored: ['**/stem-server/**'] } },
   plugins: [react(), VitePWA({
     registerType: 'autoUpdate',
     manifest: {

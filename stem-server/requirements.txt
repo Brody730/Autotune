@@ -1,0 +1,9 @@
+# PyTorch se instala aparte (ver instalar.bat) para elegir GPU (CUDA) o CPU.
+demucs==4.0.1
+yt-dlp[default]
+imageio-ffmpeg
+librosa>=0.10
+soundfile
+numpy<2
+fastapi
+uvicorn

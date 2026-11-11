@@ -39,6 +39,8 @@ import { librarySongs, setExtraSongs } from './song/library';
 import { keyShiftBetween } from './lib/voice';
 import { LibraryPanel } from './views/LibraryPanel';
 import { PracticePanel } from './views/practice/PracticePanel';
+import { StemsPanel } from './views/stems/StemsPanel';
+import { Tour, tourPending } from './views/Tour';
 
 /** Recordatorio de donación: como mucho una vez cada 14 días, y solo tras grabar. */
 function shouldNudge(): boolean {
@@ -122,8 +124,10 @@ export default function App() {
   // Cuenta (inicia la sincronización si hay sesión), vistas y grabación
   const { user } = useAuth();
   const profileName = useStore((d) => d.profile.displayName);
-  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band' | 'practice'>('stage');
+  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band' | 'practice' | 'stems'>('stage');
   const [practiceSong, setPracticeSong] = useState<string | null>(null);
+  // Recorrido de bienvenida: solo la primera vez (y no al llegar por un enlace de invitación)
+  const [tour, setTour] = useState(() => tourPending() && !new URLSearchParams(location.search).get('unirse'));
   // «🎮 Practicar» desde la bóveda
   useEffect(() => {
     const h = (e: Event) => {
@@ -584,6 +588,7 @@ export default function App() {
 
         <button
           className={`ctl rec ${recInfo ? 'on' : ''}`}
+          data-tour="rec"
           onClick={() => void (recInfo ? stopRecording() : startRecording())}
           disabled={micStatus !== 'active'}
           title={recInfo ? 'Detener y guardar la grabación' : 'Grabar en vivo'}
@@ -593,18 +598,22 @@ export default function App() {
         </button>
         <button
           className={`ctl nav ${jamMode !== 'off' ? 'amber' : ''}`}
+          data-tour="band"
           onClick={() => (jamMode === 'listen' ? setView('stage') : setView('band'))}
           title="Ministerio: servicios, bóveda de cifrados y JAM en vivo"
         >
           👥 <span>{jamMode === 'host' ? `JAM · ${jam.peers.length}` : 'Banda'}</span>
         </button>
-        <button className="ctl nav" onClick={() => setView('library')} title="Canciones, medleys y grabaciones">
+        <button className="ctl nav" data-tour="library" onClick={() => setView('library')} title="Canciones, medleys y grabaciones">
           📚 <span>Biblioteca</span>
         </button>
-        <button className="ctl nav" onClick={() => setView('practice')} title="Practica con pista y puntaje (tipo Guitar Hero)">
+        <button className="ctl nav" data-tour="practice" onClick={() => setView('practice')} title="Practica con pista y puntaje (tipo Guitar Hero)">
           🎮 <span>Práctica</span>
         </button>
-        <button className="ctl nav account" onClick={() => setView('account')} title="Cuenta">
+        <button className="ctl nav" data-tour="stems" onClick={() => setView('stems')} title="Separa una canción de YouTube en pistas, saca sus notas y practica sobre la original">
+          🎚 <span>Pistas</span>
+        </button>
+        <button className="ctl nav account" data-tour="account" onClick={() => setView('account')} title="Cuenta">
           <span className="avatar sm">{(profileName || user?.email || '').slice(0, 1).toUpperCase() || '👤'}</span>
           <span>{user ? 'Cuenta' : 'Entrar'}</span>
         </button>
@@ -618,7 +627,7 @@ export default function App() {
           ))}
         </div>
 
-        <div className="controls">
+        <div className="controls" data-tour="controls">
           <select
             className="ctl device"
             value={deviceId}
@@ -657,10 +666,13 @@ export default function App() {
           <button className="ctl icon" onClick={toggleFullscreen} title="Pantalla completa">
             ⛶
           </button>
+          <button className="ctl icon" onClick={() => (setView('stage'), setTour(true))} title="Ver el recorrido de la app" aria-label="Ver el recorrido de la app">
+            ?
+          </button>
         </div>
       </header>
 
-      <div className="bars">
+      <div className="bars" data-tour="song">
         <SongBar
           f={follower}
           settings={{ ...songCfg, onChange: updateSongCfg }}
@@ -728,7 +740,7 @@ export default function App() {
 
       {/* ── Escenario principal ────────────────────── */}
       <main className="main">
-        <section className="hero">
+        <section className="hero" data-tour="hero">
           <div className="eyebrow">Nota en vivo</div>
           <div className={`note ${live ? 'live' : 'idle'} ${!inScale ? 'outside' : ''}`}>
             {note ? (
@@ -763,7 +775,7 @@ export default function App() {
         </section>
 
         <aside className="side">
-          <div className={`card key-card ${keyLocked ? 'locked' : ''}`}>
+          <div className={`card key-card ${keyLocked ? 'locked' : ''}`} data-tour="key">
             <div className="card-head">
               <span className="eyebrow">Tonalidad</span>
               <button
@@ -791,7 +803,7 @@ export default function App() {
           </div>
 
           {sheetLines && origKey ? (
-            <div className="card chord-card sheet">
+            <div className="card chord-card sheet" data-tour="chord">
               <span className="eyebrow">Acordes · transportados</span>
               <div className={`chord-big ${lineSheet?.chords.length ? 'on' : ''} ${(lineSheet?.chords.length ?? 0) > 2 ? 'many' : ''}`}>
                 {lineSheet?.chords.length
@@ -827,7 +839,7 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="card chord-card">
+            <div className="card chord-card" data-tour="chord">
               <span className="eyebrow">Acorde sugerido</span>
               <div className={`chord-big ${suggested ? 'on' : ''}`}>
                 {suggested ? chordName(suggested, notation, flats) : '—'}
@@ -839,7 +851,7 @@ export default function App() {
       </main>
 
       {/* ── Campo armónico ─────────────────────────── */}
-      <section className="field">
+      <section className="field" data-tour="harmony">
         <div className="field-head">
           <span className="eyebrow">Campo armónico</span>
           <div className="histo" title="Notas cantadas (memoria de tonalidad)">
@@ -885,6 +897,7 @@ export default function App() {
       {view === 'practice' ? (
         <PracticePanel notation={notation} getStream={getStream} initialSongKey={practiceSong} onClose={() => setView('stage')} />
       ) : null}
+      {view === 'stems' ? <StemsPanel notation={notation} liveMidi={live ? midi : null} onClose={() => setView('stage')} /> : null}
       {view === 'band' ? (
         <BandPanel
           notation={notation}
@@ -929,6 +942,8 @@ export default function App() {
         <AccountPanel notation={notation} liveMidi={live ? midi : null} onClose={() => setView('stage')} />
       ) : null}
 
+      {tour ? <Tour onClose={() => setTour(false)} /> : null}
+
       {toast ? (
         <div className="toast" role="status">
           <span>{toast.text}</span>
@@ -963,7 +978,7 @@ export default function App() {
       ) : null}
 
       {/* ── Estados del micrófono ──────────────────── */}
-      {micStatus !== 'active' && micStatus !== 'idle' ? (
+      {micStatus !== 'active' && micStatus !== 'idle' && !tour ? (
         <div className="overlay">
           <div className="overlay-box">
             {micStatus === 'starting' ? (

@@ -4,3 +4,12 @@ dist
 *.tsbuildinfo
 .env
 .claude/settings.local.json
+
+# Motor de pistas (entorno, modelos y audios locales)
+stem-server/.venv
+stem-server/.uv-cache
+stem-server/python
+stem-server/bin
+stem-server/models
+stem-server/data
+__pycache__
