@@ -511,3 +511,12 @@ flowchart LR
 ### Probado
 - En el navegador con un himno de prueba (estrofas numeradas, coro repetido, estrofas sin acordes): secciones, «↻ Coro», proyección de acordes, transposición Sol→La, cuenta regresiva + desplazamiento, y envío al escenario. `npm run build` pasa.
 - **No probado**: pedal Bluetooth real, Wake Lock en un celular, importación masiva con archivos reales, APK.
+
+---
+
+## 2026-11-23 — Himnario: «🧹 Limpiar pegado» reconoce encabezados escritos a mano
+
+- Antes, al pegar con encabezados como «1ra estrofa», «2da estrofa» o «Coro», el botón no cambiaba nada y «1ra estrofa» se quedaba como si fuera letra.
+- Nuevo `normalizeHymnText` (`src/hymnal/model.ts`), que convierte «1ra/2da/3ra estrofa», «1° estrofa», «Primera estrofa», «Estrofa 2», «(Verso 3)», «Coro:», «Estribillo» y «Coro x2» a `[Estrofa N]` / `[Coro]`. El visor lo aplica siempre, aunque no se pulse Limpiar.
+- Limpiar ahora reescribe el texto en el formato estándar, deja una línea en blanco antes de cada sección y avisa qué encontró («Listo: Estrofa 1 · Coro · Estrofa 2 · Estrofa 3»).
+- Probado con un himno pegado con esos encabezados: reconoce las 4 secciones y las estrofas 2 y 3 toman los acordes de la 1.

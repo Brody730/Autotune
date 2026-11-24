@@ -5,7 +5,7 @@ import { cleanPastedSheet } from '../song/importSheet';
 import { normalize } from '../song/text';
 import { exportJson, hymnStore, importFiles, useHymns } from './hymnStore';
 import { HymnViewer } from './HymnViewer';
-import { Hymn, HYMN_COUNT, searchText, simplify, splitSections } from './model';
+import { Hymn, HYMN_COUNT, normalizeHymnText, searchText, simplify, splitSections } from './model';
 
 type Tab = 'all' | 'ready' | 'favs' | 'set';
 
@@ -249,6 +249,7 @@ function HymnEditor({ num, onClose, onSaved }: { num: number; onClose(): void; o
   const [text, setText] = useState(existing?.text ?? '');
   const [key, setKey] = useState(existing?.key ? `${existing.key.root}:${existing.key.scale}` : '');
   const [bpm, setBpm] = useState(existing?.bpm ? String(existing.bpm) : '');
+  const [cleanMsg, setCleanMsg] = useState('');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -264,7 +265,15 @@ function HymnEditor({ num, onClose, onSaved }: { num: number; onClose(): void; o
   /** Limpia lo pegado de LaCuerda / Cifra Club / AcordesWeb (publicidad, «Tono:», tablaturas…). */
   const cleanUp = () => {
     const c = cleanPastedSheet(text);
-    setText(c.sheet);
+    const next = normalizeHymnText(c.sheet)
+      .split('\n')
+      .map((l) => l.replace(/\s+$/, ''))
+      .join('\n')
+      // una línea en blanco antes de cada sección para que se lea mejor
+      .replace(/\n*(\[[^\]]+\])\n/g, '\n\n$1\n')
+      .trim();
+    setCleanMsg(next === text.trim() ? 'Ya estaba en el formato correcto.' : `Listo: ${splitSections(next).map((s) => s.label).join(' · ')}`);
+    setText(next);
     if (!title && c.title) setTitle(c.title);
     if (!key && c.key) setKey(`${c.key.root}:${c.key.scale}`);
     if (!bpm && c.bpm) setBpm(String(c.bpm));
@@ -303,6 +312,7 @@ function HymnEditor({ num, onClose, onSaved }: { num: number; onClose(): void; o
           himnario. Basta escribir el coro <b>una vez</b> y poner acordes solo en la primera estrofa: la app los repite.
         </p>
         <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} placeholder={PLACEHOLDER} />
+        {cleanMsg ? <div className="hy-msg">{cleanMsg}</div> : null}
         <div className="hy-report">
           {sections.length ? `${sections.map((s) => s.label).join(' · ')} — ${chordCount} acordes` : 'Sin contenido'}
           {report.notes.length ? <div>✓ {report.notes.join(' · ')}</div> : null}

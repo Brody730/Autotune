@@ -66,9 +66,41 @@ function prettyLabel(label: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
 }
 
+const ORDINALS: Record<string, number> = {
+  primera: 1, primer: 1, segunda: 2, tercera: 3, cuarta: 4, quinta: 5, sexta: 6,
+  septima: 7, séptima: 7, octava: 8, novena: 9, decima: 10, décima: 10,
+};
+// «1ra estrofa», «2da. Estrofa:», «3° estrofa», «Estrofa 4», «Primera estrofa», «(Verso 2)»
+const ORD_NUM_RE = /^\s*[[(]?\s*(\d{1,2})\s*(?:ra|da|ta|ma|na|va|era|er|ro|do|to|a|o|°|º|ª)?\.?\s*(estrofa|verso)\s*[\])]?\s*[:.]?\s*$/i;
+const ORD_WORD_RE = /^\s*[[(]?\s*([a-záéíóú]+)\s+(estrofa|verso)\s*[\])]?\s*[:.]?\s*$/i;
+const VERSE_NUM_RE = /^\s*[[(]?\s*(?:estrofa|verso)\s*(?:n[°º.]?\s*)?(\d{1,2})\s*[\])]?\s*[:.]?\s*$/i;
+const CHORUS_RE = /^\s*[[(]?\s*(coro|estribillo|pre-?coro|puente|final|intro|interludio)\s*(?:\(?\s*x?\s*\d\s*x?\s*\)?)?\s*[\])]?\s*[:.]?\s*$/i;
+
+/**
+ * Encabezados escritos a mano («1ra estrofa», «Coro:», «Segunda estrofa»…)
+ * → forma estándar «[Estrofa 1]», «[Coro]». Lo demás queda igual.
+ */
+export function normalizeHymnText(text: string): string {
+  return normalizeSheetText(text)
+    .split('\n')
+    .map((line) => {
+      let m = ORD_NUM_RE.exec(line) ?? VERSE_NUM_RE.exec(line);
+      if (m) return `[Estrofa ${Number(m[1])}]`;
+      m = ORD_WORD_RE.exec(line);
+      if (m) {
+        const n = ORDINALS[m[1].toLowerCase()];
+        if (n) return `[Estrofa ${n}]`;
+      }
+      m = CHORUS_RE.exec(line);
+      if (m) return `[${prettyLabel(m[1]).replace(/^Estribillo$/, 'Coro')}]`;
+      return line;
+    })
+    .join('\n');
+}
+
 /** Divide el texto en secciones con etiqueta. */
 export function splitSections(text: string): Section[] {
-  const raw = normalizeSheetText(text).split('\n');
+  const raw = normalizeHymnText(text).split('\n');
   const blocks: { label: string | null; lines: string[] }[] = [];
   let cur: { label: string | null; lines: string[] } | null = null;
   const open = (label: string | null) => {
