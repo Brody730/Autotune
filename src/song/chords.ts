@@ -76,11 +76,26 @@ export function normalizeSheetText(text: string): string {
     .replace(/\t/g, '    ');
 }
 
-const SECTION_WORDS = /^\s*[[(]?\s*(intro|coro|estrofa|verso|puente|pre-?coro|final|outro|interludio|chorus|verse|bridge|tag|instrumental|solo|primera|segunda|tercera|parte)\b.*$/i;
-/** Encabezado de sección: palabra conocida, o cualquier «[Algo]» suelto que no sea un acorde. */
+const SECTION_WORDS =
+  /^\s*[[(]?\s*(intro|coro|estribillo|estrofa|verso|puente|pre-?coro|final|outro|interludio|chorus|verse|bridge|tag|instrumental|solo|primera|segunda|tercera|parte)\b([^\]):]{0,14})\s*[\])]?\s*:?\s*(.*)$/i;
+/**
+ * Encabezado de sección: palabra conocida sola («Coro», «Estrofa 2», «Primera parte:»,
+ * «Intro: G D»), o cualquier «[Algo]» suelto que no sea un acorde. Una línea de letra
+ * que solo EMPIEZA con esas palabras («Solo Cristo me salva», «Tercera vez…») no lo es.
+ */
 const SECTION_RE = {
   test(line: string): boolean {
-    if (SECTION_WORDS.test(line)) return true;
+    const w = SECTION_WORDS.exec(line);
+    if (w) {
+      const mid = w[2].trim();
+      const rest = w[3].trim();
+      const midOk = !mid || /^(\d+|parte|vez|x\s*\d+|\d+\s*x|[ivx]+)$/i.test(mid);
+      const restOk =
+        !rest ||
+        /^x?\s*\d+\s*x?$/i.test(rest) ||
+        rest.split(/\s+/).every((t) => /^[|/\-x()\d.:]+$/i.test(t) || parseChord(t.replace(/[()]/g, '')));
+      if (midOk && restOk) return true;
+    }
     const m = /^\s*\[([^\]]+)\]\s*:?\s*$/.exec(line);
     return !!m && !parseChord(m[1]);
   },

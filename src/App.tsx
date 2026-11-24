@@ -24,7 +24,7 @@ import { useAuth } from './lib/auth';
 import { showDonations, DONATE_URL } from './lib/config';
 import { fmtDuration, LiveRecorder } from './lib/recordings';
 import { useSessionTracker } from './lib/sessionTracker';
-import { useStore } from './lib/store';
+import { store, useStore } from './lib/store';
 import { AccountPanel } from './views/AccountPanel';
 import { BandEvent } from './band/api';
 import { bandStore, useBand, vaultSongByKey } from './band/bandStore';
@@ -41,6 +41,8 @@ import { LibraryPanel } from './views/LibraryPanel';
 import { PracticePanel } from './views/practice/PracticePanel';
 import { StemsPanel } from './views/stems/StemsPanel';
 import { Tour, tourPending } from './views/Tour';
+import { HymnalPanel } from './hymnal/HymnalPanel';
+import { expandForStage, Hymn } from './hymnal/model';
 
 /** Recordatorio de donación: como mucho una vez cada 14 días, y solo tras grabar. */
 function shouldNudge(): boolean {
@@ -124,7 +126,9 @@ export default function App() {
   // Cuenta (inicia la sincronización si hay sesión), vistas y grabación
   const { user } = useAuth();
   const profileName = useStore((d) => d.profile.displayName);
-  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band' | 'practice' | 'stems'>('stage');
+  const [view, setView] = useState<'stage' | 'library' | 'account' | 'band' | 'practice' | 'stems' | 'hymnal'>(() =>
+    new URLSearchParams(location.search).get('vista') === 'himnario' ? 'hymnal' : 'stage',
+  );
   const [practiceSong, setPracticeSong] = useState<string | null>(null);
   // Recorrido de bienvenida: solo la primera vez (y no al llegar por un enlace de invitación)
   const [tour, setTour] = useState(() => tourPending() && !new URLSearchParams(location.search).get('unirse'));
@@ -442,6 +446,16 @@ export default function App() {
     pendingShift.current = it.key && orig ? keyShiftBetween(orig, it.key) : null;
     if (built) follower.chooseSong(built);
   };
+  // Himnario → escenario: guarda el cifrado completo (coros y acordes en cada estrofa) y elige la canción
+  const sendHymnToStage = (h: Hymn) => {
+    const title = `${h.num}. ${h.title}`;
+    const sheet = expandForStage(h.text);
+    store.upsertSong(sheetKeyFor(title), title, 'Himnos de Gloria y Triunfo', { sheet, origKey: h.key });
+    const built = buildSong({ id: `himno:${h.num}`, title, artist: 'Himnos de Gloria y Triunfo', source: 'manual' }, null, sheetLyrics(sheet));
+    if (built) follower.chooseSong(built);
+    setView('stage');
+  };
+
   // Si el reconocimiento cambia de canción y está en la lista, avanzar el marcador
   useEffect(() => {
     if (!jamEvent || !song) return;
@@ -603,6 +617,9 @@ export default function App() {
           title="Ministerio: servicios, bóveda de cifrados y JAM en vivo"
         >
           👥 <span>{jamMode === 'host' ? `JAM · ${jam.peers.length}` : 'Banda'}</span>
+        </button>
+        <button className="ctl nav" data-tour="hymnal" onClick={() => setView('hymnal')} title="Himnos de Gloria y Triunfo: letra y acordes offline, desplazamiento automático y pantalla completa">
+          📖 <span>Himnario</span>
         </button>
         <button className="ctl nav" data-tour="library" onClick={() => setView('library')} title="Canciones, medleys y grabaciones">
           📚 <span>Biblioteca</span>
@@ -893,6 +910,7 @@ export default function App() {
       </section>
 
       {/* ── Paneles (el audio sigue funcionando debajo) ── */}
+      {view === 'hymnal' ? <HymnalPanel onClose={() => setView('stage')} onStage={sendHymnToStage} /> : null}
       {view === 'library' ? <LibraryPanel notation={notation} onClose={() => setView('stage')} /> : null}
       {view === 'practice' ? (
         <PracticePanel notation={notation} getStream={getStream} initialSongKey={practiceSong} onClose={() => setView('stage')} />

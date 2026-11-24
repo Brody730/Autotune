@@ -483,3 +483,31 @@ flowchart LR
 - `scripts/sync-motor.mjs` (antes de `dev` y `build`) copia el motor a `public/motor`.
 - **No probado de punta a punta**: se verificó la descarga de archivos y el lanzador, no la instalación completa de 3 GB en una PC limpia.
 - Sigue siendo solo para Windows y no sirve en el celular.
+
+---
+
+## 2026-11-23 — 📖 Himnario «Himnos de Gloria y Triunfo» (offline, para músicos)
+
+### Qué se agregó
+- Botón **📖 Himnario** en la barra: lista del 1 al 329, búsqueda por número (Enter abre el himno) o por palabras de la letra (sin importar acentos), pestañas **Todos / Con letra / ★ Favoritos / Lista del culto** (con orden ↑↓).
+- **Visor del himno**: pantalla completa, pantalla siempre encendida (Wake Lock), **desplazamiento automático** con cuenta regresiva y velocidad guardada por himno (🐢/🐇, ↑/↓), tocar la letra pausa/sigue, barra de progreso.
+- **Acordes resaltados** (grandes, en color y con brillo; subrayados en tema claro), modo **Solo acordes** (compases para el músico), modo **Solo letra** (para proyector), tema **Claro** para exteriores, resumen de los acordes del himno arriba.
+- Transponer por medio tono, **capo** (muestra las figuras y en qué tono suena), notación Do‑Re‑Mi / C‑D‑E, tamaño de letra A−/A+. **Todos los ajustes quedan guardados** (en las apps de Play Store el tamaño de letra se reinicia).
+- Pedales Bluetooth y teclado: PageDown/PageUp avanzan pantalla, ←/→ himno anterior/siguiente, espacio inicia/pausa, F pantalla completa.
+- **Simplificación** (`src/hymnal/model.ts`): el coro repetido se escribe una vez y luego aparece «↻ Coro ×N»; si las estrofas tienen la misma progresión (o no traen acordes), los acordes van solo en la primera y las demás dicen «acordes de Estrofa 1». Con «Simplificado» apagado, los acordes se **proyectan** palabra por palabra en todas las estrofas.
+- **🎤 Escenario**: manda el himno al escenario de AutoTune con coros completos y acordes en todas las estrofas, para usar el tono en vivo y la letra que sigue al cantante.
+- Editor por himno (pegar, 🧹 Limpiar pegado de LaCuerda/Cifra Club/AcordesWeb, tono y BPM) y **Importar** (.json de respaldo, .txt/.cho sueltos con el número en el nombre, o un .txt con muchos himnos separados por `### 12 Título`). **⤒ Respaldo .json** para pasar el himnario a otro músico o al celular.
+
+### La app no trae las letras
+- Los textos y la compilación del himnario son de Editorial Vida y los cifrados de esos sitios son aportes de sus usuarios con sus propios términos; no se copiaron. Cada iglesia carga los himnos que tiene derecho a usar. Ver `docs/HIMNARIO.md`.
+
+### Arreglo en el lector de cifrados (afecta a toda la app)
+- `SECTION_RE` en `src/song/chords.ts` tomaba como encabezado **cualquier línea que empezara** con «Solo», «Final», «Primera», «Segunda», «Tercera», «Parte», «Coro»… y la borraba (p. ej. «Solo Cristo me salva»). Ahora solo es encabezado si la palabra va sola («Coro», «Estrofa 2», «Primera parte:», «Coro x2», «Intro: G D»).
+
+### Archivos
+- Nuevos: `src/hymnal/model.ts`, `src/hymnal/hymnStore.ts`, `src/hymnal/HymnViewer.tsx`, `src/hymnal/HymnalPanel.tsx`, `docs/HIMNARIO.md`, `docs/himnario-plantilla.txt`.
+- Modificados: `src/App.tsx` (vista `hymnal`, botón y `sendHymnToStage`), `src/song/chords.ts`, `src/index.css`.
+
+### Probado
+- En el navegador con un himno de prueba (estrofas numeradas, coro repetido, estrofas sin acordes): secciones, «↻ Coro», proyección de acordes, transposición Sol→La, cuenta regresiva + desplazamiento, y envío al escenario. `npm run build` pasa.
+- **No probado**: pedal Bluetooth real, Wake Lock en un celular, importación masiva con archivos reales, APK.
